@@ -807,7 +807,7 @@ app.mount("/admin", StaticFiles(directory="static/admin", html=True), name="admi
 
 ```bash
 # Build image manually (usually not needed with docker-compose)
-docker build -t bobavision-server:local -f Dockerfile ..
+docker build -t bobavision-server:local -f Dockerfile .
 
 # Run container manually
 docker run -d -p 8000:8000 \

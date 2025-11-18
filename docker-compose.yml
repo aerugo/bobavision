@@ -7,8 +7,8 @@ services:
   # FastAPI server with mpv
   server:
     build:
-      context: .
-      dockerfile: server/Dockerfile
+      context: ./server
+      dockerfile: Dockerfile
     container_name: bobavision-server
     ports:
       - "8000:8000"
