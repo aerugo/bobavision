@@ -290,8 +290,6 @@ def get_next_video(
                 title="No placeholder videos available",
                 placeholder=True
             )
-
-        is_placeholder = True
     else:
         # Under limit - return real video
         video = video_repo.get_random_non_placeholder()
@@ -304,7 +302,9 @@ def get_next_video(
                 placeholder=True
             )
 
-        is_placeholder = False
+    # Use the video's actual is_placeholder field (not a hardcoded value)
+    # This ensures consistency with queue path and correct limit enforcement
+    is_placeholder = video.is_placeholder
 
     # Log the play
     play_log_repo.log_play(
