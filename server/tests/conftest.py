@@ -45,7 +45,7 @@ def db_session():
         Session: SQLAlchemy database session
     """
     # Import all models to ensure they're registered with Base
-    from src.db.models import Base, Video, ClientSettings, PlayLog
+    from src.db.models import Base, Video, ClientSettings, PlayLog, Queue
 
     # Use a shared in-memory database that persists across connections
     # The "file::memory:?cache=shared" URI creates a shared in-memory database

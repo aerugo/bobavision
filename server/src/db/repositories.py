@@ -341,3 +341,170 @@ class PlayLogRepository:
         return self.db.query(PlayLog).filter(
             PlayLog.client_id == client_id
         ).order_by(PlayLog.played_at.desc()).limit(limit).all()
+
+
+class QueueRepository:
+    """Repository for Queue model operations."""
+
+    def __init__(self, db: Session):
+        """Initialize repository with database session.
+
+        Args:
+            db: SQLAlchemy database session
+        """
+        self.db = db
+
+    def get_by_client(self, client_id: str) -> List['Queue']:
+        """Get all queue items for a client, sorted by position.
+
+        Args:
+            client_id: Client identifier
+
+        Returns:
+            List of Queue objects sorted by position
+        """
+        from src.db.models import Queue
+
+        return self.db.query(Queue).filter(
+            Queue.client_id == client_id
+        ).order_by(Queue.position).all()
+
+    def add(
+        self,
+        client_id: str,
+        video_id: int,
+        position: Optional[int] = None
+    ) -> 'Queue':
+        """Add a video to client's queue.
+
+        Args:
+            client_id: Client identifier
+            video_id: Video ID to add
+            position: Position in queue (auto-calculated if not provided)
+
+        Returns:
+            Created Queue object
+        """
+        from src.db.models import Queue
+
+        # If position not provided, add to end of queue
+        if position is None:
+            max_pos = self.db.query(Queue).filter(
+                Queue.client_id == client_id
+            ).count()
+            position = max_pos + 1
+
+        queue_item = Queue(
+            client_id=client_id,
+            video_id=video_id,
+            position=position
+        )
+        self.db.add(queue_item)
+        self.db.commit()
+        self.db.refresh(queue_item)
+        return queue_item
+
+    def get_next(self, client_id: str) -> Optional['Queue']:
+        """Get the next video in queue (first item by position).
+
+        Args:
+            client_id: Client identifier
+
+        Returns:
+            Queue object or None if queue is empty
+        """
+        from src.db.models import Queue
+
+        return self.db.query(Queue).filter(
+            Queue.client_id == client_id
+        ).order_by(Queue.position).first()
+
+    def remove(self, queue_id: int) -> None:
+        """Remove a queue item by ID.
+
+        Args:
+            queue_id: Queue item ID to remove
+        """
+        from src.db.models import Queue
+
+        queue_item = self.db.query(Queue).filter(
+            Queue.id == queue_id
+        ).first()
+
+        if queue_item:
+            self.db.delete(queue_item)
+            self.db.commit()
+
+    def clear(self, client_id: str) -> None:
+        """Remove all queue items for a client.
+
+        Args:
+            client_id: Client identifier
+        """
+        from src.db.models import Queue
+
+        self.db.query(Queue).filter(
+            Queue.client_id == client_id
+        ).delete()
+        self.db.commit()
+
+    def reorder(self, client_id: str, queue_ids: List[int]) -> None:
+        """Reorder queue items based on provided ID list.
+
+        Args:
+            client_id: Client identifier
+            queue_ids: List of queue item IDs in new order
+        """
+        from src.db.models import Queue
+
+        # Update position for each item
+        for new_position, queue_id in enumerate(queue_ids, start=1):
+            queue_item = self.db.query(Queue).filter(
+                Queue.id == queue_id,
+                Queue.client_id == client_id
+            ).first()
+
+            if queue_item:
+                queue_item.position = new_position
+
+        self.db.commit()
+
+    def pop(self, client_id: str) -> Optional['Queue']:
+        """Remove and return the first item in queue.
+
+        Args:
+            client_id: Client identifier
+
+        Returns:
+            Removed Queue object or None if queue is empty
+        """
+        from src.db.models import Queue
+
+        # Get first item
+        queue_item = self.db.query(Queue).filter(
+            Queue.client_id == client_id
+        ).order_by(Queue.position).first()
+
+        if queue_item:
+            # Store data before deletion
+            item_data = queue_item
+            self.db.delete(queue_item)
+            self.db.commit()
+            return item_data
+
+        return None
+
+    def count(self, client_id: str) -> int:
+        """Count number of items in client's queue.
+
+        Args:
+            client_id: Client identifier
+
+        Returns:
+            Number of queue items
+        """
+        from src.db.models import Queue
+
+        return self.db.query(Queue).filter(
+            Queue.client_id == client_id
+        ).count()

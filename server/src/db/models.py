@@ -77,3 +77,30 @@ class PlayLog(Base):
     def __repr__(self):
         """String representation of PlayLog."""
         return f"<PlayLog(id={self.id}, client='{self.client_id}', video_id={self.video_id})>"
+
+
+class Queue(Base):
+    """Queue model representing videos queued for a client."""
+
+    __tablename__ = "queue"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(
+        String,
+        ForeignKey("client_settings.client_id"),
+        nullable=False
+    )
+    video_id = Column(
+        Integer,
+        ForeignKey("videos.id"),
+        nullable=False
+    )
+    position = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    video = relationship("Video")
+
+    def __repr__(self):
+        """String representation of Queue."""
+        return f"<Queue(id={self.id}, client='{self.client_id}', video_id={self.video_id}, pos={self.position})>"
