@@ -28,21 +28,18 @@ This guide provides detailed instructions for developing the **Raspberry Pi clie
 ```bash
 cd client
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate
+# Install UV (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install dependencies
-pip install gpiozero httpx pytest pytest-mock pytest-cov
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate
 
-# Or create requirements.txt
-echo "gpiozero>=2.0" > requirements.txt
-echo "httpx>=0.24" >> requirements.txt
-echo "pytest>=7.0" >> requirements.txt
-echo "pytest-mock>=3.11" >> requirements.txt
-echo "pytest-cov>=4.1" >> requirements.txt
+# Install dependencies (including dev dependencies)
+uv pip install -e ".[dev]"
 
-pip install -r requirements.txt
+# Or sync dependencies from pyproject.toml
+uv sync
 ```
 
 ### Running Tests
@@ -78,8 +75,9 @@ sudo python src/main.py  # May need sudo for GPIO access
 ```
 client/
 ├── CLAUDE.md              ← You are here
-├── requirements.txt       ← Python dependencies
-├── pytest.ini             ← Test configuration
+├── pyproject.toml         ← Dependencies and configuration (UV)
+├── requirements.txt       ← Legacy dependencies reference
+├── pytest.ini             ← Test configuration (migrated to pyproject.toml)
 ├── config.ini             ← Client configuration
 ├── bobavision.service     ← systemd service (Phase 4)
 │

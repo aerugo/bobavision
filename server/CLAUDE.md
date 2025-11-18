@@ -28,17 +28,18 @@ This guide provides detailed instructions for developing the **FastAPI backend s
 ```bash
 cd server
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Install UV (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install dependencies
-pip install fastapi uvicorn sqlalchemy pytest pytest-asyncio pytest-cov httpx
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Or if using Poetry
-poetry init
-poetry add fastapi uvicorn sqlalchemy
-poetry add --group dev pytest pytest-asyncio pytest-cov httpx
+# Install dependencies (including dev dependencies)
+uv pip install -e ".[dev]"
+
+# Or sync dependencies from pyproject.toml
+uv sync
 ```
 
 ### Running Tests
@@ -77,9 +78,9 @@ uvicorn src.main:app --host 0.0.0.0 --port 8000
 ```
 server/
 ├── CLAUDE.md              ← You are here
-├── pyproject.toml         ← Dependencies (Poetry)
-├── requirements.txt       ← Dependencies (pip)
-├── pytest.ini             ← Test configuration
+├── pyproject.toml         ← Dependencies and configuration (UV)
+├── requirements.txt       ← Legacy dependencies reference
+├── pytest.ini             ← Test configuration (migrated to pyproject.toml)
 ├── .env.example           ← Environment variables template
 │
 ├── src/

@@ -28,26 +28,26 @@ This guide provides detailed instructions for developing the **React + TypeScrip
 ```bash
 cd admin
 
-# Initialize project with Vite
-npm create vite@latest . -- --template react-ts
+# Install Bun (if not already installed)
+curl -fsSL https://bun.sh/install | bash
 
 # Install dependencies
-npm install
+bun install
 
-# Install additional packages
-npm install -D tailwindcss postcss autoprefixer
-npm install -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event
-npm install -D @vitest/ui jsdom
+# Install additional packages (if needed)
+bun add -D tailwindcss postcss autoprefixer
+bun add -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event
+bun add -D @vitest/ui jsdom
 
-# Initialize Tailwind
-npx tailwindcss init -p
+# Initialize Tailwind (if not already configured)
+bunx tailwindcss init -p
 ```
 
 ### Running Development Server
 
 ```bash
 # Start dev server
-npm run dev
+bun run dev
 
 # Open browser to http://localhost:5173
 ```
@@ -56,26 +56,26 @@ npm run dev
 
 ```bash
 # Run all tests
-npm test
+bun test
 
 # Run tests in watch mode
-npm run test:watch
+bun run test:watch
 
 # Run tests with coverage
-npm run test:coverage
+bun run test:coverage
 
 # Run tests with UI
-npm run test:ui
+bun run test:ui
 ```
 
 ### Building for Production
 
 ```bash
 # Build for production
-npm run build
+bun run build
 
 # Preview production build
-npm run preview
+bun run preview
 ```
 
 ---
