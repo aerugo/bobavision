@@ -638,16 +638,115 @@ if __name__ == "__main__":
     main()
 ```
 
-### Phase 4: Hardware Integration & Deployment
+### Phase 4: Client Application & Kid-Friendly UI
 
-**Goal**: Client runs automatically on boot
+**Goal**: Beautiful, simple interface that kids love
+
+**Vision**: Boot directly into a colorful splash screen. Button press shows loading animation, then video plays. When done, back to splash. No console, no menus, just magic.
+
+**Technology**: pygame (simple, fast, works great on Pi)
 
 **Tasks**:
-1. Create systemd service file
-2. Configure auto-start
-3. Set up logging
-4. Test on actual hardware
-5. Optimize performance
+1. **UI Framework Setup**:
+   - Install pygame: `pip install pygame`
+   - Create fullscreen pygame window
+   - Test on Pi hardware
+
+2. **Splash Screen**:
+   - Design/source 1920x1080 splash image
+   - Load and display splash screen
+   - Add gentle animation (optional pulsing/floating)
+   - Keep displayed until button press
+
+3. **Loading Screen**:
+   - Create loading animation (spinner/progress)
+   - Show while fetching video from server
+   - Handle timeout gracefully
+
+4. **Video Integration**:
+   - Launch mpv from pygame app
+   - Hide pygame window during playback
+   - Monitor mpv process for completion
+   - Return to splash when video ends
+
+5. **State Machine**:
+   - IDLE (splash) → LOADING → PLAYING → IDLE
+   - Wire button handler to states
+   - Update UI based on state changes
+
+6. **Special Screens**:
+   - "All done for today" animation (when limit reached)
+   - Error screen (network issues)
+   - Smooth transitions between screens
+
+7. **Auto-Boot**:
+   - Create startup script
+   - Boot directly to pygame app
+   - Disable cursor and console output
+
+**Key Files**:
+```python
+# src/ui/manager.py
+class UIManager:
+    """Manages all UI screens and transitions."""
+    def show_splash(self): ...
+    def show_loading(self): ...
+    def hide_ui(self): ...
+    def show_error(self, message): ...
+
+# src/main_ui.py
+def main():
+    ui = UIManager()
+    button = ButtonHandler(...)
+    player = Player()
+
+    while True:
+        ui.render()  # Draw current screen
+        # Handle events...
+```
+
+**Design Assets** (create these):
+- `assets/splash.png` - Main splash (bright, colorful, friendly)
+- `assets/loading/` - Loading animation frames
+- `assets/all_done.png` - "All done for today" screen
+- `assets/error.png` - Friendly error screen
+
+**Testing Strategy**:
+```python
+# tests/test_ui_manager.py
+def test_splash_screen_displays():
+    """Test splash screen renders correctly."""
+    ui = UIManager(mock_mode=True)
+    ui.show_splash()
+    assert ui.current_screen == "splash"
+
+def test_transition_to_loading():
+    """Test smooth transition from splash to loading."""
+    ui = UIManager(mock_mode=True)
+    ui.show_loading()
+    assert ui.current_screen == "loading"
+```
+
+**Success Criteria**:
+- [ ] Boot to splash screen in < 30 seconds
+- [ ] No visible console/cursor
+- [ ] Smooth animations (30fps minimum)
+- [ ] Beautiful visuals that kids love
+- [ ] Press button → immediate response
+- [ ] Video plays fullscreen, no UI visible
+- [ ] Child (4-6 years) can use independently
+
+### Phase 5: Hardware Integration & Deployment
+
+**Goal**: Client runs automatically on boot on physical trolley
+
+**Tasks**:
+1. Physical hardware mounting
+2. Create systemd service file
+3. Configure auto-start
+4. Set up logging
+5. Test on actual hardware
+6. Optimize performance
 
 **systemd Service**:
 

@@ -12,7 +12,7 @@ This document serves as the **single source of truth** for the entire Kids Singl
 
 **Last Updated**: 2025-11-18
 **Current Phase**: Phase 3 - Queue & Admin UI
-**Overall Progress**: 60% (3/5 phases complete)
+**Overall Progress**: 50% (3/6 phases complete)
 
 ---
 
@@ -419,7 +419,225 @@ play_log(
 
 ---
 
-### Phase 4: Hardware Integration & Polish ⏸ NOT STARTED
+### Phase 4: Client Application & Kid-Friendly UI ⏸ NOT STARTED
+**Goal**: Create a beautiful, simple kid-friendly interface on the Raspberry Pi client
+
+**Duration Estimate**: 3-5 sessions
+
+#### Vision
+
+When the child approaches the trolley and presses the button, they should see:
+- A delightful, colorful splash screen (not a command line!)
+- Smooth loading animation while the video is fetched
+- The video playing fullscreen with no visible controls
+- Return to splash screen when video ends
+- A friendly "all done for today" animation when limit reached
+
+**No menus, no text, no choices - just beautiful visuals and one button.**
+
+#### TDD Approach
+
+1. Write failing tests for UI framework initialization
+2. Implement splash screen display
+3. Write failing tests for state transitions (splash → loading → playing)
+4. Implement state machine with UI updates
+5. Write failing tests for video player integration
+6. Integrate mpv with UI overlay
+7. Write failing tests for animation transitions
+8. Implement smooth transitions
+9. Integration tests for full user flow
+
+#### Technology Choice
+
+**Recommended: pygame**
+- Lightweight and fast on Raspberry Pi
+- Simple fullscreen graphics and image display
+- Easy integration with mpv (run as subprocess)
+- Good for splash screens and simple animations
+- No complex dependencies
+
+**Alternative: Web-based (Chromium kiosk mode)**
+- More flexible for beautiful UIs with CSS
+- Easier for designers to create assets
+- Heavier resource usage
+- Requires local web server
+
+**Decision**: Start with pygame for simplicity. Can migrate to web-based later if needed.
+
+#### Client Tasks
+
+##### UI Framework & Architecture (TDD)
+- [ ] **TEST**: Write test for pygame initialization in fullscreen mode
+- [ ] **CODE**: Implement pygame window setup
+- [ ] **TEST**: Write test for screen clearing and background color
+- [ ] **CODE**: Implement basic rendering loop
+- [ ] **TEST**: Write test for image loading and display
+- [ ] **CODE**: Implement image renderer
+- [ ] **REFACTOR**: Extract UI manager class
+
+##### Splash Screen (TDD)
+- [ ] **TEST**: Write test for splash screen display
+- [ ] **CODE**: Load and display splash screen image
+- [ ] **TEST**: Write test for splash screen refresh cycle
+- [ ] **CODE**: Implement idle animation (e.g., gentle pulsing, floating elements)
+- [ ] **DESIGN**: Create splash screen artwork (1920x1080, kid-friendly)
+- [ ] **TEST**: Write test for splash screen timeout/persistence
+- [ ] **CODE**: Keep splash screen displayed until button press
+
+##### Loading Screen (TDD)
+- [ ] **TEST**: Write test for loading screen transition
+- [ ] **CODE**: Implement loading screen display
+- [ ] **TEST**: Write test for loading animation (spinner/progress)
+- [ ] **CODE**: Implement animated loading indicator
+- [ ] **DESIGN**: Create loading screen artwork/animation frames
+- [ ] **TEST**: Write test for loading timeout handling
+- [ ] **CODE**: Handle network delays gracefully
+
+##### Video Playback Integration (TDD)
+- [ ] **TEST**: Write test for mpv process launch from UI
+- [ ] **CODE**: Launch mpv in fullscreen when video ready
+- [ ] **TEST**: Write test for UI hiding during playback
+- [ ] **CODE**: Hide pygame window or minimize during mpv playback
+- [ ] **TEST**: Write test for detecting video end
+- [ ] **CODE**: Monitor mpv process and detect completion
+- [ ] **TEST**: Write test for returning to splash after video
+- [ ] **CODE**: Transition back to splash screen when video ends
+
+##### State Machine with UI (TDD)
+- [ ] **TEST**: Write test for IDLE state shows splash
+- [ ] **CODE**: Implement state-based UI rendering
+- [ ] **TEST**: Write test for LOADING state shows loading screen
+- [ ] **CODE**: Wire loading state to UI
+- [ ] **TEST**: Write test for PLAYING state hides UI
+- [ ] **CODE**: Implement UI hide/show logic
+- [ ] **TEST**: Write test for state transitions trigger UI updates
+- [ ] **CODE**: Implement event-driven UI updates
+- [ ] **REFACTOR**: Clean up state machine integration
+
+##### Placeholder/Limit Reached (TDD)
+- [ ] **TEST**: Write test for placeholder detection from API
+- [ ] **CODE**: Check `is_placeholder` field in API response
+- [ ] **TEST**: Write test for special placeholder animation
+- [ ] **CODE**: Show "all done" screen before placeholder plays
+- [ ] **DESIGN**: Create "all done for today" animation/artwork
+- [ ] **TEST**: Write test for placeholder video playback
+- [ ] **CODE**: Play placeholder video same as regular video
+
+##### Button Integration (TDD)
+- [ ] **TEST**: Write test for button press in IDLE triggers loading
+- [ ] **CODE**: Wire button handler to state machine
+- [ ] **TEST**: Write test for button press during LOADING is ignored
+- [ ] **CODE**: Debounce/ignore button during transitions
+- [ ] **TEST**: Write test for button press during PLAYING pauses
+- [ ] **CODE**: Implement pause/resume functionality (optional)
+- [ ] **REFACTOR**: Clean up button handler integration
+
+##### Error Handling (TDD)
+- [ ] **TEST**: Write test for network error shows error screen
+- [ ] **CODE**: Implement error screen display
+- [ ] **DESIGN**: Create friendly error screen ("Can't reach videos right now")
+- [ ] **TEST**: Write test for timeout recovery back to splash
+- [ ] **CODE**: Auto-return to splash after error timeout
+- [ ] **TEST**: Write test for server offline shows cached error video
+- [ ] **CODE**: Fallback to local error video if available
+
+##### Polish & Performance (TDD)
+- [ ] **TEST**: Write test for smooth transition timing
+- [ ] **CODE**: Implement fade transitions between screens
+- [ ] **TEST**: Write test for animation frame rate
+- [ ] **CODE**: Optimize rendering loop for 30fps minimum
+- [ ] **TEST**: Write test for memory cleanup between videos
+- [ ] **CODE**: Properly cleanup pygame resources
+- [ ] **PROFILE**: Measure CPU/memory usage on Pi
+- [ ] **OPTIMIZE**: Reduce resource usage if needed
+
+##### Auto-Boot Setup
+- [ ] **DOCS**: Document Raspberry Pi boot configuration
+- [ ] **CODE**: Create startup script that launches pygame app
+- [ ] **TEST**: Test auto-start on Pi boot
+- [ ] **CONFIG**: Disable console cursor and boot messages
+- [ ] **CONFIG**: Hide Plymouth boot splash or customize
+- [ ] **TEST**: Verify boots directly to splash screen in < 30 seconds
+
+#### Design Assets Needed
+
+Create or source these visual assets:
+
+1. **Splash Screen** (`assets/splash.png`)
+   - 1920x1080 pixels
+   - Bright, colorful, friendly
+   - Could include: cartoon characters, logo, fun shapes
+   - No text (works for any language)
+
+2. **Loading Animation** (`assets/loading/frame_*.png`)
+   - 10-20 frames for smooth animation
+   - Spinning, bouncing, or floating elements
+   - Same visual style as splash
+
+3. **All Done Screen** (`assets/all_done.png`)
+   - Friendly "that's all for today" visual
+   - Could show: sleeping character, sunset, night sky
+   - Celebratory but signals end of content
+
+4. **Error Screen** (`assets/error.png`)
+   - Gentle "oops" visual (not scary)
+   - Could show: confused character, unplugged cable
+   - No blame or technical jargon
+
+5. **Transition Effects** (optional)
+   - Fade to black frames
+   - Wipe effects
+
+#### Deliverables
+
+- [ ] `/client/src/ui/` - UI module directory
+  - [ ] `manager.py` - Main UI manager class
+  - [ ] `screens.py` - Screen rendering functions
+  - [ ] `animations.py` - Animation helper functions
+  - [ ] `transitions.py` - Transition effects
+- [ ] `/client/src/main_ui.py` - Main entry point with UI
+- [ ] `/client/assets/` - Visual assets directory
+  - [ ] `splash.png` - Main splash screen
+  - [ ] `loading/` - Loading animation frames
+  - [ ] `all_done.png` - Limit reached screen
+  - [ ] `error.png` - Error screen
+- [ ] `/client/tests/test_ui_manager.py` - UI manager tests
+- [ ] `/client/tests/test_screens.py` - Screen rendering tests
+- [ ] `/client/tests/test_animations.py` - Animation tests
+- [ ] `/client/requirements.txt` - Updated with pygame
+- [ ] `/client/startup.sh` - Startup script for auto-boot
+- [ ] Updated `/client/CLAUDE.md` with UI development guide
+
+#### Success Criteria
+
+Manual testing on Raspberry Pi:
+
+- [ ] Boot Pi → splash screen appears in < 30 seconds
+- [ ] No visible console/desktop/cursor
+- [ ] Splash screen looks beautiful and smooth
+- [ ] Press button → loading screen appears immediately
+- [ ] Loading animation plays smoothly
+- [ ] Video starts playing in < 3 seconds
+- [ ] Video plays fullscreen with no UI elements visible
+- [ ] Video ends → smooth transition back to splash
+- [ ] Press button when limit reached → "all done" screen appears
+- [ ] Placeholder video plays after "all done" screen
+- [ ] Network error → friendly error screen, not crash
+- [ ] Can recover from error by pressing button again
+- [ ] No pygame window visible during video playback
+- [ ] All transitions are smooth (no flashing/tearing)
+- [ ] Child testing: 4-6 year old can use independently
+
+Automated testing:
+
+- [ ] All tests pass (UI module + integration)
+- [ ] Code coverage > 85% for UI code
+- [ ] No memory leaks over 10 video cycles
+- [ ] Performance: UI runs at 30fps minimum on Pi 4
+
+---
+
+### Phase 5: Hardware Integration & Polish ⏸ NOT STARTED
 **Goal**: Move from "Pi on desk" to "trolley media station"
 
 **Duration Estimate**: Ongoing (parallel with Phase 3)
@@ -467,7 +685,7 @@ play_log(
 
 ---
 
-### Phase 5: Testing, Refinement & Documentation ⏸ NOT STARTED
+### Phase 6: Testing, Refinement & Documentation ⏸ NOT STARTED
 **Goal**: Comprehensive testing, bug fixes, and complete documentation
 
 **Duration Estimate**: 2-3 sessions
@@ -549,8 +767,9 @@ play_log(
 | Phase 1: Minimal Vertical Slice | 🟢 Complete | 100% | 2025-11-18 | 2025-11-18 |
 | Phase 2: Persistence & Daily Limits | 🟢 Complete | 100% | 2025-11-18 | 2025-11-18 |
 | Phase 3: Queue & Admin UI | ⚪ Not Started | 0% | - | - |
-| Phase 4: Hardware Integration | ⚪ Not Started | 0% | - | - |
-| Phase 5: Testing & Documentation | ⚪ Not Started | 0% | - | - |
+| Phase 4: Client App & Kid-Friendly UI | ⚪ Not Started | 0% | - | - |
+| Phase 5: Hardware Integration | ⚪ Not Started | 0% | - | - |
+| Phase 6: Testing & Documentation | ⚪ Not Started | 0% | - | - |
 
 **Legend**: 🟢 Complete | 🟡 In Progress | ⚪ Not Started | 🔴 Blocked
 
@@ -565,9 +784,12 @@ play_log(
 - Preparing for Phase 3: Queue management and Admin UI
 
 **Next Up**:
-- Queue repository and API endpoints
-- React admin UI development
-- Statistics endpoints
+- Phase 3: Queue repository and API endpoints
+- Phase 3: React admin UI development
+- Phase 3: Statistics endpoints
+- Phase 4: Kid-friendly client UI with pygame
+- Phase 4: Splash screens and animations
+- Phase 4: Video playback integration
 
 ### Metrics
 
