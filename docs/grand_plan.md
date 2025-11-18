@@ -437,203 +437,273 @@ When the child approaches the trolley and presses the button, they should see:
 
 #### TDD Approach
 
-1. Write failing tests for UI framework initialization
-2. Implement splash screen display
-3. Write failing tests for state transitions (splash → loading → playing)
-4. Implement state machine with UI updates
-5. Write failing tests for video player integration
-6. Integrate mpv with UI overlay
-7. Write failing tests for animation transitions
-8. Implement smooth transitions
-9. Integration tests for full user flow
+1. Write failing tests for web server initialization
+2. Implement minimal HTTP server for UI assets
+3. Write failing tests for Chromium kiosk mode launcher
+4. Implement browser window management
+5. Write failing tests for state transitions (splash → loading → playing)
+6. Implement state machine with UI updates via WebSocket/polling
+7. Write failing tests for video player integration
+8. Integrate mpv with browser window management
+9. Write failing tests for UI screens (HTML/CSS)
+10. Create splash, loading, error, and "all done" screens
+11. Integration tests for full user flow
 
 #### Technology Choice
 
-**Recommended: pygame**
-- Lightweight and fast on Raspberry Pi
-- Simple fullscreen graphics and image display
-- Easy integration with mpv (run as subprocess)
-- Good for splash screens and simple animations
-- No complex dependencies
+**Selected: Web-based UI (Chromium Kiosk + Vanilla HTML/CSS)**
 
-**Alternative: Web-based (Chromium kiosk mode)**
-- More flexible for beautiful UIs with CSS
-- Easier for designers to create assets
-- Heavier resource usage
-- Requires local web server
+**Why this approach:**
+- **Designer-friendly**: HTML/CSS is universal, easy to iterate and modify
+- **Beautiful animations**: CSS transitions/animations are smooth and native
+- **Fast iteration**: Edit CSS, refresh browser - see changes immediately
+- **No build step**: Vanilla HTML/CSS/JS, no npm, no webpack, no complexity
+- **Future-proof**: Easy to add features (touch support, settings screen, etc.)
+- **Consistent tech**: Same technologies as admin UI (React) for consistency
 
-**Decision**: Start with pygame for simplicity. Can migrate to web-based later if needed.
+**Architecture:**
+```
+Pi Boot → Python web server (port 5000)
+       → Chromium kiosk mode (fullscreen, localhost:5000)
+       → HTML splash screen with CSS animations
+       → Button press → Python client detects → Minimize Chromium → Launch mpv
+       → Video ends → Restore Chromium → Back to splash
+```
+
+**Trade-offs:**
+- Chromium adds ~100-150MB RAM usage (acceptable on Pi 4)
+- Boot time: +3-5 seconds for Chromium startup
+- Window management is slightly more complex
+- **Worth it for**: Design flexibility and beautiful, maintainable UI
 
 #### Client Tasks
 
-##### UI Framework & Architecture (TDD)
-- [ ] **TEST**: Write test for pygame initialization in fullscreen mode
-- [ ] **CODE**: Implement pygame window setup
-- [ ] **TEST**: Write test for screen clearing and background color
-- [ ] **CODE**: Implement basic rendering loop
-- [ ] **TEST**: Write test for image loading and display
-- [ ] **CODE**: Implement image renderer
-- [ ] **REFACTOR**: Extract UI manager class
+##### Web Server Setup (TDD)
+- [ ] **TEST**: Write test for HTTP server initialization
+- [ ] **CODE**: Implement minimal HTTP server (Python http.server or Flask)
+- [ ] **TEST**: Write test for serving static HTML files
+- [ ] **CODE**: Serve HTML/CSS/JS from `/client/ui/` directory
+- [ ] **TEST**: Write test for WebSocket or SSE connection for state updates
+- [ ] **CODE**: Implement real-time communication channel for UI updates
+- [ ] **TEST**: Write test for graceful server shutdown
+- [ ] **CODE**: Handle server lifecycle management
+- [ ] **REFACTOR**: Extract web server to separate module
 
-##### Splash Screen (TDD)
-- [ ] **TEST**: Write test for splash screen display
-- [ ] **CODE**: Load and display splash screen image
-- [ ] **TEST**: Write test for splash screen refresh cycle
-- [ ] **CODE**: Implement idle animation (e.g., gentle pulsing, floating elements)
-- [ ] **DESIGN**: Create splash screen artwork (1920x1080, kid-friendly)
-- [ ] **TEST**: Write test for splash screen timeout/persistence
-- [ ] **CODE**: Keep splash screen displayed until button press
+##### Browser Management (TDD)
+- [ ] **TEST**: Write test for Chromium launcher in kiosk mode
+- [ ] **CODE**: Launch Chromium with correct flags (--kiosk, --no-first-run, etc.)
+- [ ] **TEST**: Write test for window minimizing
+- [ ] **CODE**: Implement window minimize/hide functionality via wmctrl or xdotool
+- [ ] **TEST**: Write test for window restoration
+- [ ] **CODE**: Implement window restore and focus functionality
+- [ ] **TEST**: Write test for browser process monitoring
+- [ ] **CODE**: Monitor Chromium process health and restart if crashed
+- [ ] **REFACTOR**: Extract browser manager class
 
-##### Loading Screen (TDD)
-- [ ] **TEST**: Write test for loading screen transition
-- [ ] **CODE**: Implement loading screen display
-- [ ] **TEST**: Write test for loading animation (spinner/progress)
-- [ ] **CODE**: Implement animated loading indicator
-- [ ] **DESIGN**: Create loading screen artwork/animation frames
-- [ ] **TEST**: Write test for loading timeout handling
-- [ ] **CODE**: Handle network delays gracefully
+##### HTML Splash Screen
+- [ ] **DESIGN**: Create splash screen HTML structure
+- [ ] **DESIGN**: Style splash screen with CSS (gradients, colors, layout)
+- [ ] **DESIGN**: Add CSS animations (floating, pulsing, gentle motion)
+- [ ] **CODE**: Create `/client/ui/splash.html`
+- [ ] **CODE**: Create `/client/ui/styles/splash.css`
+- [ ] **TEST**: Verify splash screen loads in browser
+- [ ] **TEST**: Verify animations run smoothly (60fps)
+- [ ] **POLISH**: Add custom fonts, SVG graphics, polish visuals
+
+##### HTML Loading Screen
+- [ ] **DESIGN**: Create loading screen HTML structure
+- [ ] **DESIGN**: Create CSS spinner/loading animation
+- [ ] **CODE**: Create `/client/ui/loading.html`
+- [ ] **CODE**: Create `/client/ui/styles/loading.css`
+- [ ] **CODE**: Add JavaScript to animate loading progress
+- [ ] **TEST**: Verify smooth transitions from splash to loading
+- [ ] **TEST**: Verify loading animation performance
+- [ ] **POLISH**: Add loading messages, playful animations
+
+##### HTML "All Done" Screen
+- [ ] **DESIGN**: Create "all done for today" screen HTML
+- [ ] **DESIGN**: Style with friendly, celebratory CSS
+- [ ] **CODE**: Create `/client/ui/all_done.html`
+- [ ] **CODE**: Create `/client/ui/styles/all_done.css`
+- [ ] **CODE**: Add CSS animation (stars, confetti, gentle motion)
+- [ ] **TEST**: Verify placeholder detection triggers correct screen
+- [ ] **POLISH**: Make it delightful and positive
+
+##### HTML Error Screen
+- [ ] **DESIGN**: Create error screen HTML (friendly, not scary)
+- [ ] **DESIGN**: Style with gentle colors and reassuring visuals
+- [ ] **CODE**: Create `/client/ui/error.html`
+- [ ] **CODE**: Create `/client/ui/styles/error.css`
+- [ ] **CODE**: Add auto-retry functionality with countdown
+- [ ] **TEST**: Verify error screen shows on network failure
+- [ ] **TEST**: Verify automatic recovery back to splash
+- [ ] **POLISH**: Add friendly messaging without technical jargon
 
 ##### Video Playback Integration (TDD)
-- [ ] **TEST**: Write test for mpv process launch from UI
+- [ ] **TEST**: Write test for mpv process launch
 - [ ] **CODE**: Launch mpv in fullscreen when video ready
-- [ ] **TEST**: Write test for UI hiding during playback
-- [ ] **CODE**: Hide pygame window or minimize during mpv playback
+- [ ] **TEST**: Write test for browser minimization during playback
+- [ ] **CODE**: Minimize Chromium window when mpv starts
 - [ ] **TEST**: Write test for detecting video end
 - [ ] **CODE**: Monitor mpv process and detect completion
-- [ ] **TEST**: Write test for returning to splash after video
-- [ ] **CODE**: Transition back to splash screen when video ends
+- [ ] **TEST**: Write test for browser restoration after video
+- [ ] **CODE**: Restore and focus Chromium window when mpv exits
+- [ ] **TEST**: Write test for handling mpv crashes
+- [ ] **CODE**: Implement mpv error recovery
+- [ ] **REFACTOR**: Extract video player manager
 
 ##### State Machine with UI (TDD)
-- [ ] **TEST**: Write test for IDLE state shows splash
-- [ ] **CODE**: Implement state-based UI rendering
-- [ ] **TEST**: Write test for LOADING state shows loading screen
-- [ ] **CODE**: Wire loading state to UI
-- [ ] **TEST**: Write test for PLAYING state hides UI
-- [ ] **CODE**: Implement UI hide/show logic
+- [ ] **TEST**: Write test for IDLE state serves splash.html
+- [ ] **CODE**: Implement state-based routing/page serving
+- [ ] **TEST**: Write test for LOADING state serves loading.html
+- [ ] **CODE**: Implement state transitions via WebSocket/SSE
+- [ ] **TEST**: Write test for PLAYING state minimizes browser
+- [ ] **CODE**: Implement browser window management in PLAYING state
 - [ ] **TEST**: Write test for state transitions trigger UI updates
-- [ ] **CODE**: Implement event-driven UI updates
+- [ ] **CODE**: Send state change events to browser via WebSocket
+- [ ] **TEST**: Write test for JavaScript state handler in browser
+- [ ] **CODE**: Implement client-side JavaScript to handle state changes
 - [ ] **REFACTOR**: Clean up state machine integration
-
-##### Placeholder/Limit Reached (TDD)
-- [ ] **TEST**: Write test for placeholder detection from API
-- [ ] **CODE**: Check `is_placeholder` field in API response
-- [ ] **TEST**: Write test for special placeholder animation
-- [ ] **CODE**: Show "all done" screen before placeholder plays
-- [ ] **DESIGN**: Create "all done for today" animation/artwork
-- [ ] **TEST**: Write test for placeholder video playback
-- [ ] **CODE**: Play placeholder video same as regular video
 
 ##### Button Integration (TDD)
 - [ ] **TEST**: Write test for button press in IDLE triggers loading
 - [ ] **CODE**: Wire button handler to state machine
 - [ ] **TEST**: Write test for button press during LOADING is ignored
 - [ ] **CODE**: Debounce/ignore button during transitions
-- [ ] **TEST**: Write test for button press during PLAYING pauses
-- [ ] **CODE**: Implement pause/resume functionality (optional)
+- [ ] **TEST**: Write test for button press during PLAYING pauses (optional)
+- [ ] **CODE**: Implement pause/resume via mpv IPC (optional feature)
 - [ ] **REFACTOR**: Clean up button handler integration
 
-##### Error Handling (TDD)
-- [ ] **TEST**: Write test for network error shows error screen
-- [ ] **CODE**: Implement error screen display
-- [ ] **DESIGN**: Create friendly error screen ("Can't reach videos right now")
-- [ ] **TEST**: Write test for timeout recovery back to splash
-- [ ] **CODE**: Auto-return to splash after error timeout
-- [ ] **TEST**: Write test for server offline shows cached error video
-- [ ] **CODE**: Fallback to local error video if available
+##### Communication Layer (TDD)
+- [ ] **TEST**: Write test for WebSocket connection establishment
+- [ ] **CODE**: Implement WebSocket server (or SSE as simpler alternative)
+- [ ] **TEST**: Write test for broadcasting state changes
+- [ ] **CODE**: Send state updates to connected browser clients
+- [ ] **TEST**: Write test for JavaScript WebSocket client
+- [ ] **CODE**: Implement browser-side WebSocket/EventSource handler
+- [ ] **TEST**: Write test for reconnection on connection loss
+- [ ] **CODE**: Implement automatic reconnection with exponential backoff
+- [ ] **REFACTOR**: Extract communication module
 
-##### Polish & Performance (TDD)
-- [ ] **TEST**: Write test for smooth transition timing
-- [ ] **CODE**: Implement fade transitions between screens
-- [ ] **TEST**: Write test for animation frame rate
-- [ ] **CODE**: Optimize rendering loop for 30fps minimum
-- [ ] **TEST**: Write test for memory cleanup between videos
-- [ ] **CODE**: Properly cleanup pygame resources
-- [ ] **PROFILE**: Measure CPU/memory usage on Pi
-- [ ] **OPTIMIZE**: Reduce resource usage if needed
+##### Polish & Performance
+- [ ] **TEST**: Measure page load times (< 500ms target)
+- [ ] **OPTIMIZE**: Minify CSS if needed
+- [ ] **TEST**: Measure animation performance (60fps target)
+- [ ] **OPTIMIZE**: Use CSS transform/opacity for smooth animations
+- [ ] **TEST**: Measure memory usage over 10 video cycles
+- [ ] **OPTIMIZE**: Prevent memory leaks, cleanup resources
+- [ ] **PROFILE**: Use Chrome DevTools to profile performance
+- [ ] **POLISH**: Add subtle sound effects (optional)
+- [ ] **POLISH**: Add accessibility features (high contrast mode, etc.)
 
 ##### Auto-Boot Setup
 - [ ] **DOCS**: Document Raspberry Pi boot configuration
-- [ ] **CODE**: Create startup script that launches pygame app
+- [ ] **CODE**: Create startup script that launches web server + Chromium
 - [ ] **TEST**: Test auto-start on Pi boot
 - [ ] **CONFIG**: Disable console cursor and boot messages
-- [ ] **CONFIG**: Hide Plymouth boot splash or customize
+- [ ] **CONFIG**: Configure Chromium to launch in kiosk mode on boot
+- [ ] **CONFIG**: Hide Plymouth boot splash or customize with logo
 - [ ] **TEST**: Verify boots directly to splash screen in < 30 seconds
+- [ ] **CONFIG**: Set up systemd service for client application
 
 #### Design Assets Needed
 
-Create or source these visual assets:
+**HTML/CSS-based (no static images required for core functionality):**
 
-1. **Splash Screen** (`assets/splash.png`)
-   - 1920x1080 pixels
-   - Bright, colorful, friendly
-   - Could include: cartoon characters, logo, fun shapes
-   - No text (works for any language)
+The beauty of HTML/CSS is that you can create everything with code:
+- Gradients, colors, shapes via CSS
+- Animations via CSS keyframes
+- SVG graphics inline in HTML
 
-2. **Loading Animation** (`assets/loading/frame_*.png`)
-   - 10-20 frames for smooth animation
-   - Spinning, bouncing, or floating elements
-   - Same visual style as splash
+**Optional visual assets:**
 
-3. **All Done Screen** (`assets/all_done.png`)
-   - Friendly "that's all for today" visual
-   - Could show: sleeping character, sunset, night sky
-   - Celebratory but signals end of content
+1. **Logo/Branding** (`/client/ui/assets/logo.svg`)
+   - SVG format (scalable, crisp at any size)
+   - Simple, recognizable icon
+   - Optional: can use emoji or pure CSS design instead
 
-4. **Error Screen** (`assets/error.png`)
-   - Gentle "oops" visual (not scary)
-   - Could show: confused character, unplugged cable
-   - No blame or technical jargon
+2. **Custom Fonts** (`/client/ui/assets/fonts/`)
+   - Kid-friendly font (Fredoka, Baloo, Comic Sans alternatives)
+   - Web fonts or self-hosted
 
-5. **Transition Effects** (optional)
-   - Fade to black frames
-   - Wipe effects
+3. **Sound Effects** (optional, `/client/ui/assets/sounds/`)
+   - Button press sound (satisfying "boop")
+   - Loading sound (gentle chime)
+   - Error sound (soft "uh oh")
+   - All done sound (celebratory chime)
+
+**Everything else created with HTML/CSS:**
+- Splash screen: CSS gradients + animations
+- Loading spinner: Pure CSS animation
+- All done screen: CSS confetti/stars animation
+- Error screen: CSS styling + friendly text
+- Transitions: CSS transitions/transforms
 
 #### Deliverables
 
-- [ ] `/client/src/ui/` - UI module directory
-  - [ ] `manager.py` - Main UI manager class
-  - [ ] `screens.py` - Screen rendering functions
-  - [ ] `animations.py` - Animation helper functions
-  - [ ] `transitions.py` - Transition effects
-- [ ] `/client/src/main_ui.py` - Main entry point with UI
-- [ ] `/client/assets/` - Visual assets directory
-  - [ ] `splash.png` - Main splash screen
-  - [ ] `loading/` - Loading animation frames
-  - [ ] `all_done.png` - Limit reached screen
-  - [ ] `error.png` - Error screen
-- [ ] `/client/tests/test_ui_manager.py` - UI manager tests
-- [ ] `/client/tests/test_screens.py` - Screen rendering tests
-- [ ] `/client/tests/test_animations.py` - Animation tests
-- [ ] `/client/requirements.txt` - Updated with pygame
+- [ ] `/client/src/web_server.py` - HTTP server for UI assets
+- [ ] `/client/src/browser_manager.py` - Chromium kiosk mode manager
+- [ ] `/client/src/ui_controller.py` - State machine with UI updates
+- [ ] `/client/src/communication.py` - WebSocket/SSE server
+- [ ] `/client/src/main_ui.py` - Main entry point with web UI
+- [ ] `/client/ui/` - Web UI directory
+  - [ ] `splash.html` - Splash screen
+  - [ ] `loading.html` - Loading screen
+  - [ ] `all_done.html` - "All done for today" screen
+  - [ ] `error.html` - Error screen
+  - [ ] `styles/` - CSS directory
+    - [ ] `common.css` - Shared styles
+    - [ ] `splash.css` - Splash screen styles
+    - [ ] `loading.css` - Loading screen styles
+    - [ ] `all_done.css` - All done screen styles
+    - [ ] `error.css` - Error screen styles
+  - [ ] `scripts/` - JavaScript directory
+    - [ ] `state_handler.js` - WebSocket client for state updates
+    - [ ] `animations.js` - Custom animation helpers
+  - [ ] `assets/` - Optional assets (logo, fonts, sounds)
+- [ ] `/client/tests/test_web_server.py` - Web server tests
+- [ ] `/client/tests/test_browser_manager.py` - Browser manager tests
+- [ ] `/client/tests/test_ui_controller.py` - UI controller tests
+- [ ] `/client/tests/test_communication.py` - WebSocket/SSE tests
+- [ ] `/client/requirements.txt` - Updated with websockets/Flask
 - [ ] `/client/startup.sh` - Startup script for auto-boot
-- [ ] Updated `/client/CLAUDE.md` with UI development guide
+- [ ] `/client/bobavision-ui.service` - systemd service file
+- [ ] Updated `/client/CLAUDE.md` with HTML UI development guide
 
 #### Success Criteria
 
 Manual testing on Raspberry Pi:
 
-- [ ] Boot Pi → splash screen appears in < 30 seconds
-- [ ] No visible console/desktop/cursor
-- [ ] Splash screen looks beautiful and smooth
-- [ ] Press button → loading screen appears immediately
-- [ ] Loading animation plays smoothly
-- [ ] Video starts playing in < 3 seconds
+- [ ] Boot Pi → splash screen appears in < 35 seconds (includes Chromium startup)
+- [ ] No visible console/desktop/cursor (full kiosk mode)
+- [ ] Splash screen looks beautiful with smooth CSS animations
+- [ ] Press button → loading screen transition is instant and smooth
+- [ ] Loading animation plays smoothly at 60fps
+- [ ] Video starts playing in < 3 seconds after button press
 - [ ] Video plays fullscreen with no UI elements visible
-- [ ] Video ends → smooth transition back to splash
+- [ ] Chromium window properly minimized during video playback
+- [ ] Video ends → smooth transition back to splash (browser restored)
 - [ ] Press button when limit reached → "all done" screen appears
+- [ ] "All done" screen is delightful and celebratory
 - [ ] Placeholder video plays after "all done" screen
 - [ ] Network error → friendly error screen, not crash
+- [ ] Error screen auto-retries and recovers gracefully
 - [ ] Can recover from error by pressing button again
-- [ ] No pygame window visible during video playback
-- [ ] All transitions are smooth (no flashing/tearing)
+- [ ] WebSocket reconnects automatically if connection lost
+- [ ] All CSS transitions are smooth (no flashing/tearing)
+- [ ] Page loads are fast (< 500ms)
 - [ ] Child testing: 4-6 year old can use independently
+- [ ] Design iteration: Can modify CSS and see changes immediately
 
 Automated testing:
 
-- [ ] All tests pass (UI module + integration)
-- [ ] Code coverage > 85% for UI code
-- [ ] No memory leaks over 10 video cycles
-- [ ] Performance: UI runs at 30fps minimum on Pi 4
+- [ ] All tests pass (web server, browser manager, UI controller)
+- [ ] Code coverage > 85% for Python code
+- [ ] WebSocket tests pass (connection, reconnection, broadcasting)
+- [ ] No memory leaks over 10 video cycles (monitor Chromium + Python)
+- [ ] Performance: CSS animations run at 60fps
+- [ ] Browser process monitoring and recovery works
+- [ ] Graceful shutdown of all processes (web server, browser, mpv)
 
 ---
 
