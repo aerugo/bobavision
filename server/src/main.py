@@ -5,6 +5,7 @@ GREEN phase: Implement minimal API to pass tests.
 import random
 from pathlib import Path
 from fastapi import FastAPI, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.media.scanner import VideoScanner
@@ -18,22 +19,41 @@ class NextVideoResponse(BaseModel):
     placeholder: bool
 
 
-# Global media directory (can be set for testing)
-MEDIA_DIRECTORY = "../media/library"
-
-
-def set_media_directory(path: str):
-    """Set the media directory path (for testing)."""
-    global MEDIA_DIRECTORY
-    MEDIA_DIRECTORY = path
-
-
 # Create FastAPI app
 app = FastAPI(
     title="Kids Media Station API",
     description="API for kids single-button media station",
     version="0.1.0"
 )
+
+
+# Global media directory (can be set for testing)
+MEDIA_DIRECTORY = "../media/library"
+
+
+def set_media_directory(path: str):
+    """Set the media directory path and mount for static file serving.
+
+    Args:
+        path: Path to media directory
+    """
+    global MEDIA_DIRECTORY
+    MEDIA_DIRECTORY = path
+
+    # Remove existing media mount if present
+    app.routes[:] = [
+        r for r in app.routes
+        if not (hasattr(r, 'path') and '/media/library' in str(getattr(r, 'path', '')))
+    ]
+
+    # Mount new directory for static file serving
+    media_path = Path(path)
+    if media_path.exists() and media_path.is_dir():
+        app.mount(
+            "/media/library",
+            StaticFiles(directory=str(media_path)),
+            name="media"
+        )
 
 
 @app.get("/")
@@ -91,3 +111,19 @@ def get_next_video(client_id: str = Query(..., description="Client identifier"))
         title=title,
         placeholder=False
     )
+
+
+# Mount static files for media serving
+# This must be done after defining routes to avoid conflicts
+try:
+    media_path = Path(MEDIA_DIRECTORY)
+    if media_path.exists() and media_path.is_dir():
+        app.mount(
+            "/media/library",
+            StaticFiles(directory=str(media_path)),
+            name="media"
+        )
+except Exception:
+    # If media directory doesn't exist yet, skip mounting
+    # It will be mounted when set_media_directory is called
+    pass
