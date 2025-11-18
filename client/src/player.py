@@ -4,9 +4,12 @@ Video player wrapper for mpv.
 This module provides a simple interface to control mpv video playback
 on the Raspberry Pi client.
 """
+import logging
 import subprocess
 import time
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class Player:
@@ -58,15 +61,37 @@ class Player:
         # Add the video URL/path
         args.append(url)
 
-        # Start mpv process
-        self.process = subprocess.Popen(
-            args,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+        # Start mpv process with logging
+        logger.info(f"Starting mpv with command: {' '.join(args)}")
+        try:
+            self.process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
 
-        self.is_playing = True
-        self.current_url = url
+            # Check if process started successfully
+            time.sleep(0.1)  # Give it a moment to fail if it's going to
+            if self.process.poll() is not None:
+                # Process already exited - capture error output
+                stdout, stderr = self.process.communicate()
+                logger.error(
+                    f"mpv exited immediately with code {self.process.returncode}\n"
+                    f"stdout: {stdout.decode() if stdout else '(empty)'}\n"
+                    f"stderr: {stderr.decode() if stderr else '(empty)'}"
+                )
+                raise RuntimeError(f"mpv failed to start (exit code {self.process.returncode})")
+
+            self.is_playing = True
+            self.current_url = url
+            logger.info(f"mpv started successfully for: {url}")
+
+        except FileNotFoundError:
+            logger.error("mpv is not installed or not in PATH")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to start mpv: {e}", exc_info=True)
+            raise
 
     def is_running(self) -> bool:
         """
@@ -89,8 +114,19 @@ class Player:
         This method will wait indefinitely until the mpv process exits.
         """
         if self.process is not None:
-            self.process.wait()
+            exit_code = self.process.wait()
             self.is_playing = False
+
+            if exit_code != 0:
+                # Capture any error output
+                stdout, stderr = self.process.communicate()
+                logger.warning(
+                    f"mpv exited with code {exit_code}\n"
+                    f"stdout: {stdout.decode() if stdout else '(empty)'}\n"
+                    f"stderr: {stderr.decode() if stderr else '(empty)'}"
+                )
+            else:
+                logger.info(f"Video playback completed successfully (exit code 0)")
 
     def get_exit_code(self) -> Optional[int]:
         """
