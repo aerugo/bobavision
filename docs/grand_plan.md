@@ -766,6 +766,21 @@ Manual testing on Raspberry Pi (DEFERRED TO PHASE 5):
 **Duration Estimate**: Ongoing (parallel with Phase 3)
 
 #### Tasks
+
+##### Server Containerization (NEW - 2025-11-18)
+- [ ] **TEST**: Write tests for Docker build process
+- [ ] **CODE**: Create Dockerfile for server with mpv and dependencies
+- [ ] **CODE**: Create docker-compose.yml for easy deployment
+- [ ] **CODE**: Create .dockerignore for optimized builds
+- [ ] **TEST**: Verify container builds successfully
+- [ ] **TEST**: Verify mpv is available in container
+- [ ] **TEST**: Verify server runs correctly in container
+- [ ] **TEST**: Verify database persistence with volumes
+- [ ] **TEST**: Verify media files accessible from container
+- [ ] **DOCS**: Update README with container deployment instructions
+- [ ] **DOCS**: Update server CLAUDE.md with container development guide
+
+##### Hardware Setup
 - [ ] Design and document hardware mounting plan
 - [ ] Purchase components (Pi, screen, button, speaker, power)
 - [ ] 3D print or fabricate mounting brackets (if needed)
@@ -789,6 +804,16 @@ Manual testing on Raspberry Pi (DEFERRED TO PHASE 5):
 - [ ] Final ergonomics test with actual child
 
 #### Deliverables
+
+##### Containerization Deliverables
+- [ ] `/server/Dockerfile` - Multi-stage Docker build with mpv
+- [ ] `/docker-compose.yml` - Orchestration file for server + database
+- [ ] `/server/.dockerignore` - Docker build exclusions
+- [ ] `/server/tests/test_docker.py` - Container build and runtime tests
+- [ ] Updated `/README.md` - Container deployment instructions
+- [ ] Updated `/server/CLAUDE.md` - Container development guide
+
+##### Hardware Deliverables
 - [ ] `/docs/hardware_setup.md` - Hardware assembly guide
 - [ ] `/client/bobavision.service` - systemd service file
 - [ ] `/client/config/display_settings.txt` - HDMI config
@@ -1138,6 +1163,29 @@ These features are explicitly **out of scope** for v1.0 but may be added later:
 - Must maintain test suite alongside features
 - Higher upfront time investment for long-term quality
 
+### ADR-007: Server Containerization with mpv
+**Decision**: Package the server as a Docker container with mpv included.
+
+**Rationale**:
+- **Dependency isolation**: All server dependencies (Python, FastAPI, SQLite, mpv) bundled in one container
+- **Easy deployment**: Single container image can run on any host with Docker
+- **Consistent environment**: Development, testing, and production use identical environment
+- **mpv inclusion for future features**:
+  - Video metadata extraction (duration, resolution, codec info)
+  - Thumbnail generation for admin UI
+  - Video format validation before adding to library
+  - Optional transcoding/conversion capabilities
+- **Simplified setup**: No manual installation of system packages
+- **Version locking**: Container image pins all dependencies to specific versions
+
+**Consequences**:
+- Requires Docker to be installed on deployment host
+- Larger initial download size (~500MB vs ~50MB for Python app)
+- Additional learning curve for Docker-specific operations
+- Must configure volume mounts for database and media persistence
+- Container orchestration needed for production deployments
+- Worth the trade-off for deployment simplicity and consistency
+
 ---
 
 ## Development Workflow
@@ -1190,7 +1238,7 @@ Before merging any phase:
 - Emphasized simplicity and maintainability over feature creep
 - Set clear boundaries for v1.0 scope
 
-### 2025-11-18: Phase 0-3 Full Completion
+### 2025-11-18: Phase 0-4 Full Completion
 - **Phase 0** completed with full documentation and project setup
 - **Phase 1** completed with core API endpoints and media serving (server-side only)
 - **Phase 2** completed with database integration, daily limits, and comprehensive repository layer
@@ -1201,15 +1249,25 @@ Before merging any phase:
   - TypeScript configuration updated to exclude tests from build
   - Frontend coverage: 89.04% (exceeds 70% target)
   - Backend coverage: 98.29% (exceeds 85% target)
-- **TDD discipline maintained**: 222 total tests across all phases with excellent coverage
+- **Phase 4** COMPLETE (100%) with:
+  - Client application with Flask web server (9 tests, 90% coverage)
+  - mpv video player integration (17 tests, 98% coverage)
+  - GPIO button handling (14 tests, 95% coverage)
+  - State machine (23 tests, 88% coverage)
+  - HTML/CSS kid-friendly UI screens
+  - 83 unit tests + 24 Playwright E2E tests
+  - 85% client code coverage
+- **TDD discipline maintained**: 305 unit tests + 24 E2E tests across all phases with excellent coverage
 - **Monolithic approach**: All endpoints in main.py rather than separate route files (simpler for this project size)
 - **Test quality**: Comprehensive test coverage with meaningful assertions, not just "does it run" tests
-- **Phase 3 achievements**:
-  - Fixed outdated Phase 1 test (`test_api_next_returns_valid_json`) to use database approach
-  - All 165 server tests passing
-  - All 57 admin tests passing
-  - Production-ready admin UI built and ready to serve
-- **Next focus**: Phase 4 - Client application with web-based UI (Chromium kiosk mode)
+- **Next focus**: Phase 5 - Server containerization and hardware integration
+
+### 2025-11-18: Server Containerization Decision (ADR-007)
+- **Decision made**: Containerize server with mpv for dependency isolation and easy deployment
+- **Rationale**: Docker provides consistent environment, easy deployment, and future-proofs for video processing features
+- **Implementation approach**: Multi-stage Docker build with Alpine Linux for minimal image size
+- **Future benefits**: mpv enables metadata extraction, thumbnail generation, and video validation
+- **Added to grand plan**: Containerization tasks added to Phase 5 with full TDD workflow
 
 ---
 

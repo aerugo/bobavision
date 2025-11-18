@@ -23,7 +23,41 @@ This guide provides detailed instructions for developing the **FastAPI backend s
 
 ## Quick Start
 
-### Initial Setup (Phase 0)
+### Docker Deployment (Recommended - Phase 5+)
+
+**NEW as of 2025-11-18**: The server is now containerized with all dependencies (Python, FastAPI, mpv, ffmpeg) for zero-configuration deployment.
+
+```bash
+cd /path/to/bobavision
+
+# Start server with docker-compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f server
+
+# Stop server
+docker-compose down
+
+# Run tests in container
+docker-compose exec server pytest
+
+# Access container shell
+docker-compose exec server sh
+```
+
+**Why Docker?** (See ADR-007 in grand_plan.md)
+- All dependencies bundled (no manual installation)
+- Includes mpv for future video processing features
+- Consistent environment across dev/staging/production
+- Easy deployment and updates
+- Automatic database and media persistence via volumes
+
+---
+
+### Native Python Setup (Development)
+
+For active development with hot-reload:
 
 ```bash
 cd server
@@ -54,8 +88,14 @@ pytest --cov=src --cov-report=html --cov-report=term
 # Run specific test file
 pytest tests/test_api.py
 
-# Run specific test
+# Run specific test (excluding Docker tests in local dev)
 pytest tests/test_api.py::test_get_next_video
+
+# Run Docker tests (requires Docker installed)
+pytest tests/test_docker.py -v
+
+# Skip Docker tests (for local development)
+pytest -v -k "not docker"
 
 # Run in watch mode (requires pytest-watch)
 ptw
@@ -67,8 +107,11 @@ ptw
 # Development mode (auto-reload)
 uvicorn src.main:app --reload --port 8000
 
-# Production mode
+# Production mode (native - not containerized)
 uvicorn src.main:app --host 0.0.0.0 --port 8000
+
+# Production mode (Docker - recommended)
+docker-compose up -d
 ```
 
 ---
@@ -758,6 +801,43 @@ from fastapi.staticfiles import StaticFiles
 
 app.mount("/media", StaticFiles(directory="../media"), name="media")
 app.mount("/admin", StaticFiles(directory="static/admin", html=True), name="admin")
+```
+
+### Working with Docker
+
+```bash
+# Build image manually (usually not needed with docker-compose)
+docker build -t bobavision-server:local -f Dockerfile ..
+
+# Run container manually
+docker run -d -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/media:/app/media \
+  bobavision-server:local
+
+# Check container health
+docker ps
+docker logs <container-id>
+
+# Execute commands in running container
+docker exec <container-id> pytest
+docker exec -it <container-id> sh
+
+# Clean up
+docker stop <container-id>
+docker rm <container-id>
+```
+
+### Testing Docker Build
+
+```bash
+# Run Docker tests (requires Docker installed)
+pytest tests/test_docker.py -v
+
+# Test specific Docker functionality
+pytest tests/test_docker.py::TestDockerBuild::test_docker_image_builds -v
+pytest tests/test_docker.py::TestContainerContents::test_mpv_installed -v
+pytest tests/test_docker.py::TestContainerRuntime::test_server_responds -v
 ```
 
 ---
