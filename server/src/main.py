@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, Query, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -147,6 +148,18 @@ app = FastAPI(
     title="Kids Media Station API",
     description="API for kids single-button media station",
     version="0.2.0"
+)
+
+# Configure CORS to allow admin UI access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3000",  # Alternative frontend port
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 
