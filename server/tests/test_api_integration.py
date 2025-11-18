@@ -8,43 +8,32 @@ Following TDD principles:
 import pytest
 from datetime import date, datetime, timedelta
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
-def db_session():
-    """Create in-memory SQLite database for testing."""
-    from src.db.models import Base
-
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    yield session
-
-    session.close()
-
-
-@pytest.fixture
-def client_with_db(db_session):
+def client_with_db(db_session, monkeypatch):
     """Create test client with database override."""
     from src.main import app
     from src.db.database import get_db
 
-    # Override database dependency
+    # Mock init_db to prevent startup event from initializing wrong database
+    import src.db.database
+    monkeypatch.setattr(src.db.database, "init_db", lambda: None)
+
+    # Override database dependency to use test session
     def override_get_db():
         try:
             yield db_session
         finally:
-            pass  # Don't close in tests
+            pass  # Don't close test session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
+    # Create test client
+    with TestClient(app, raise_server_exceptions=True) as test_client:
         yield test_client
 
+    # Clean up
     app.dependency_overrides.clear()
 
 

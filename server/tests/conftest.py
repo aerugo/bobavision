@@ -4,6 +4,9 @@ Provides common setup like test client, mock data, etc.
 """
 import pytest
 from pathlib import Path
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture
@@ -29,3 +32,34 @@ def empty_media_dir(tmp_path):
         Path: Empty directory
     """
     return tmp_path
+
+
+@pytest.fixture
+def db_session():
+    """Create in-memory SQLite database for testing.
+
+    Uses a shared in-memory database that persists across connections.
+    This is required for FastAPI TestClient which uses multiple threads.
+
+    Returns:
+        Session: SQLAlchemy database session
+    """
+    # Import all models to ensure they're registered with Base
+    from src.db.models import Base, Video, ClientSettings, PlayLog
+
+    # Use a shared in-memory database that persists across connections
+    # The "file::memory:?cache=shared" URI creates a shared in-memory database
+    engine = create_engine(
+        "sqlite:///file::memory:?cache=shared&uri=true",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool  # Use StaticPool to keep single connection
+    )
+    Base.metadata.create_all(engine)
+
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = Session()
+
+    yield session
+
+    session.close()
+    engine.dispose()

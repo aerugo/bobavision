@@ -1,14 +1,17 @@
 """FastAPI application entry point.
 
-GREEN phase: Implement minimal API to pass tests.
+Phase 2: Updated with database integration and daily limits.
 """
-import random
+from datetime import date
 from pathlib import Path
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from src.media.scanner import VideoScanner
+from src.db.database import get_db, init_db
+from src.db.repositories import VideoRepository, ClientRepository, PlayLogRepository
+from src.services.limit_service import LimitService
 
 
 # Response model for /api/next endpoint
@@ -23,8 +26,15 @@ class NextVideoResponse(BaseModel):
 app = FastAPI(
     title="Kids Media Station API",
     description="API for kids single-button media station",
-    version="0.1.0"
+    version="0.2.0"
 )
+
+
+# Initialize database on startup
+@app.on_event("startup")
+def startup_event():
+    """Initialize database tables on application startup."""
+    init_db()
 
 
 # Global media directory (can be set for testing)
@@ -61,55 +71,86 @@ def root():
     """Root endpoint - basic API info."""
     return {
         "message": "Kids Media Station API",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "status": "running"
     }
 
 
 @app.get("/api/next", response_model=NextVideoResponse)
-def get_next_video(client_id: str = Query(..., description="Client identifier")):
+def get_next_video(
+    client_id: str = Query(..., description="Client identifier"),
+    db: Session = Depends(get_db)
+):
     """Get the next video for a client.
 
-    In Phase 1: Returns random video from library.
-    Phase 2 will add daily limits and placeholder logic.
+    Phase 2: Enforces daily limits, logs plays, returns placeholders when limit reached.
     Phase 3 will add queue support.
 
     Args:
         client_id: Unique identifier for the client device
+        db: Database session (injected)
 
     Returns:
         NextVideoResponse with video URL, title, and placeholder flag
     """
-    # Scan media directory for videos
-    scanner = VideoScanner(MEDIA_DIRECTORY)
-    videos = scanner.scan()
+    # Initialize repositories and services
+    video_repo = VideoRepository(db)
+    client_repo = ClientRepository(db)
+    play_log_repo = PlayLogRepository(db)
+    limit_service = LimitService(db)
 
-    # For Phase 1: just pick a random video
-    # (Phase 2 will add limit checking and placeholder logic)
-    if not videos:
-        # No videos available - this is an edge case
-        # In Phase 2, we'll return a placeholder
-        # For now, return a simple error indicator
-        return NextVideoResponse(
-            url="/media/library/none.mp4",
-            title="No videos available",
-            placeholder=True
-        )
+    # Get or create client
+    client = client_repo.get_or_create(
+        client_id=client_id,
+        friendly_name=f"Client {client_id}"
+    )
 
-    # Select random video
-    selected_video = random.choice(videos)
+    # Check if daily limit reached
+    today = date.today()
+    limit_reached = limit_service.is_limit_reached(client_id, today)
 
-    # Extract title from filename
-    title = Path(selected_video).stem.replace("_", " ").replace("-", " ").title()
+    # Select video based on limit status
+    if limit_reached:
+        # Limit reached - return placeholder
+        video = video_repo.get_random_placeholder()
+
+        if video is None:
+            # No placeholder videos available - return error message
+            return NextVideoResponse(
+                url="/media/library/none.mp4",
+                title="No placeholder videos available",
+                placeholder=True
+            )
+
+        is_placeholder = True
+    else:
+        # Under limit - return real video
+        video = video_repo.get_random_non_placeholder()
+
+        if video is None:
+            # No videos available - return error message
+            return NextVideoResponse(
+                url="/media/library/none.mp4",
+                title="No videos available",
+                placeholder=True
+            )
+
+        is_placeholder = False
+
+    # Log the play
+    play_log_repo.log_play(
+        client_id=client_id,
+        video_id=video.id,
+        is_placeholder=is_placeholder
+    )
 
     # Build URL path
-    # In Phase 1, we assume videos will be served from /media/library/
-    url = f"/media/library/{selected_video}"
+    url = f"/media/library/{video.path}"
 
     return NextVideoResponse(
         url=url,
-        title=title,
-        placeholder=False
+        title=video.title,
+        placeholder=is_placeholder
     )
 
 

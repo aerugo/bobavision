@@ -10,16 +10,34 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-def test_api_next_returns_video_url(sample_videos):
-    """Test that /api/next returns a video URL.
+def test_api_next_returns_video_url(db_session):
+    """Test that /api/next returns a video URL from database.
 
-    RED phase: This will fail because the API doesn't exist yet.
+    Updated for Phase 2: Uses database instead of filesystem.
     """
-    # Arrange - Import app and create test client
-    from src.main import app, set_media_directory
+    # Arrange - Set up test database with videos
+    from src.db.repositories import VideoRepository
+    from src.main import app
+    from src.db.database import get_db
 
-    # Set media directory to our test fixtures
-    set_media_directory(str(sample_videos))
+    # Populate database with test videos
+    video_repo = VideoRepository(db_session)
+    video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
+    video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+
+    # Override database dependency
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    # Disable startup init_db
+    import src.db.database
+    original_init_db = src.db.database.init_db
+    src.db.database.init_db = lambda: None
 
     client = TestClient(app)
 
@@ -37,15 +55,48 @@ def test_api_next_returns_video_url(sample_videos):
 
     # URL should point to a video file
     assert data["url"].endswith(".mp4")
-    # Placeholder should be False in Phase 1 (no limits yet)
+    # Placeholder should be False when under limit
     assert data["placeholder"] is False
 
+    # Clean up
+    app.dependency_overrides.clear()
+    src.db.database.init_db = original_init_db
 
-def test_api_next_returns_different_videos_on_consecutive_calls(sample_videos):
-    """Test that consecutive calls can return different videos (random selection)."""
-    # Arrange
-    from src.main import app, set_media_directory
-    set_media_directory(str(sample_videos))
+
+def test_api_next_returns_different_videos_on_consecutive_calls(db_session):
+    """Test that consecutive calls can return different videos (random selection).
+
+    Updated for Phase 2: Uses database instead of filesystem.
+    """
+    # Arrange - Set up test database with videos
+    from src.db.repositories import VideoRepository, ClientRepository
+    from src.main import app
+    from src.db.database import get_db
+
+    # Populate database with test videos
+    video_repo = VideoRepository(db_session)
+    video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
+    video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+    video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+
+    # Create client with high limit so we don't hit placeholders
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=100)
+
+    # Override database dependency
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    # Disable startup init_db
+    import src.db.database
+    original_init_db = src.db.database.init_db
+    src.db.database.init_db = lambda: None
+
     client = TestClient(app)
 
     # Act - Make multiple calls
@@ -61,6 +112,10 @@ def test_api_next_returns_different_videos_on_consecutive_calls(sample_videos):
 
     # Should have at least 2 different videos
     assert len(unique_urls) >= 2
+
+    # Clean up
+    app.dependency_overrides.clear()
+    src.db.database.init_db = original_init_db
 
 
 def test_api_next_requires_client_id():
