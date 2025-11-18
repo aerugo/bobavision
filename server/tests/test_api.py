@@ -6,6 +6,7 @@ Following TDD principles:
 - REFACTOR: Improve code while keeping tests green
 """
 import pytest
+from pathlib import Path
 from fastapi.testclient import TestClient
 
 
