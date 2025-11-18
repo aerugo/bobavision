@@ -638,16 +638,272 @@ if __name__ == "__main__":
     main()
 ```
 
-### Phase 4: Hardware Integration & Deployment
+### Phase 4: Client Application & Kid-Friendly UI (Web-Based)
 
-**Goal**: Client runs automatically on boot
+**Goal**: Beautiful, simple interface that kids love
+
+**Vision**: Boot directly into a colorful splash screen in a browser. Button press shows loading animation, then video plays. When done, back to splash. No console, no menus, just magic.
+
+**Technology**: HTML/CSS/JavaScript + Chromium Kiosk Mode
+
+**Why Web-Based:**
+- Designer-friendly (HTML/CSS is universal)
+- Beautiful CSS animations (60fps, smooth)
+- Fast iteration (edit CSS, refresh, see immediately)
+- No build step (vanilla HTML/CSS/JS)
+- Easy to maintain and evolve
+
+**Architecture**:
+```
+Python Client App
+├── HTTP Server (port 5000) serving /client/ui/
+├── WebSocket Server (real-time state updates)
+├── Chromium Manager (launch, minimize, restore)
+├── Button Handler (GPIO)
+├── State Machine (IDLE → LOADING → PLAYING → IDLE)
+└── mpv Player (video playback)
+
+Flow:
+1. Boot → Start web server + launch Chromium (kiosk, localhost:5000)
+2. Browser shows splash.html with CSS animations
+3. Button press → State = LOADING → Browser shows loading.html
+4. Video ready → Minimize Chromium → Launch mpv fullscreen
+5. Video ends → Restore Chromium → State = IDLE → Back to splash.html
+```
 
 **Tasks**:
-1. Create systemd service file
-2. Configure auto-start
-3. Set up logging
-4. Test on actual hardware
-5. Optimize performance
+
+#### 1. **Web Server Setup**:
+   - Install Flask or use http.server: `pip install flask`
+   - Create HTTP server serving `/client/ui/` directory
+   - Add WebSocket support for real-time state updates
+   - Test server serves HTML files correctly
+
+#### 2. **Browser Management**:
+   - Install Chromium on Pi: `sudo apt install chromium-browser`
+   - Launch Chromium in kiosk mode with flags:
+     ```bash
+     chromium-browser --kiosk --no-first-run --disable-infobars \
+       --disable-session-crashed-bubble --noerrdialogs \
+       http://localhost:5000
+     ```
+   - Implement window minimize: use `wmctrl` or `xdotool`
+   - Implement window restore and focus
+   - Monitor browser process health
+
+#### 3. **HTML Splash Screen**:
+   - Create `ui/splash.html` with centered logo/text
+   - Style with CSS gradients and colors
+   - Add CSS animations (gentle float, pulse, fade)
+   - Example:
+     ```css
+     @keyframes float {
+       0%, 100% { transform: translateY(0px); }
+       50% { transform: translateY(-20px); }
+     }
+     .logo { animation: float 3s ease-in-out infinite; }
+     ```
+
+#### 4. **HTML Loading Screen**:
+   - Create `ui/loading.html` with spinner
+   - Pure CSS spinner animation
+   - Add loading text ("Getting your video ready...")
+   - Smooth fade transition from splash
+
+#### 5. **HTML "All Done" Screen**:
+   - Create `ui/all_done.html`
+   - Celebratory design (stars, confetti CSS animation)
+   - Positive messaging ("Great watching today!")
+   - Auto-transition to placeholder video
+
+#### 6. **HTML Error Screen**:
+   - Create `ui/error.html`
+   - Friendly, not scary design
+   - Auto-retry countdown
+   - Recovery path back to splash
+
+#### 7. **State Machine with WebSocket**:
+   - Implement WebSocket server for state updates
+   - Browser connects to WebSocket on load
+   - State changes → Send message to browser → Browser navigates/updates
+   - Example:
+     ```javascript
+     // ui/scripts/state_handler.js
+     const ws = new WebSocket('ws://localhost:5000/ws');
+     ws.onmessage = (event) => {
+       const state = JSON.parse(event.data);
+       if (state.screen === 'loading') {
+         window.location.href = '/loading.html';
+       }
+     };
+     ```
+
+#### 8. **Video Integration**:
+   - Before launching mpv: Minimize Chromium window
+   - Launch mpv in fullscreen
+   - Monitor mpv process completion
+   - After mpv exits: Restore Chromium window
+
+#### 9. **Auto-Boot**:
+   - Create systemd service
+   - Disable X11 cursor: `unclutter`
+   - Configure Pi to boot to kiosk mode
+   - Hide boot messages
+
+**Key Files**:
+```python
+# src/web_server.py
+from flask import Flask, send_from_directory
+from flask_sock import Sock
+
+app = Flask(__name__)
+sock = Sock(app)
+
+@app.route('/')
+def splash():
+    return send_from_directory('ui', 'splash.html')
+
+@sock.route('/ws')
+def websocket(ws):
+    # Handle WebSocket connection
+    ...
+
+# src/browser_manager.py
+import subprocess
+
+class BrowserManager:
+    def launch_kiosk(self, url):
+        """Launch Chromium in kiosk mode."""
+        self.process = subprocess.Popen([
+            'chromium-browser', '--kiosk', '--no-first-run',
+            '--disable-infobars', url
+        ])
+
+    def minimize(self):
+        """Minimize browser window."""
+        subprocess.run(['wmctrl', '-r', 'Chromium', '-b', 'add,hidden'])
+
+    def restore(self):
+        """Restore browser window."""
+        subprocess.run(['wmctrl', '-r', 'Chromium', '-b', 'remove,hidden'])
+        subprocess.run(['wmctrl', '-a', 'Chromium'])
+
+# src/main_ui.py
+def main():
+    # Start web server
+    server = WebServer(port=5000)
+    server.start()
+
+    # Launch browser
+    browser = BrowserManager()
+    browser.launch_kiosk('http://localhost:5000')
+
+    # Initialize components
+    button = ButtonHandler(...)
+    player = Player()
+    state_machine = StateMachine()
+
+    # Main loop
+    while True:
+        # Handle state changes, button presses, etc.
+        ...
+```
+
+**HTML Structure**:
+```html
+<!-- ui/splash.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="/styles/common.css">
+  <link rel="stylesheet" href="/styles/splash.css">
+  <script src="/scripts/state_handler.js"></script>
+</head>
+<body>
+  <div class="splash-container">
+    <div class="logo">🧋</div>
+    <div class="tagline">BobaVision</div>
+  </div>
+</body>
+</html>
+
+<!-- ui/styles/splash.css -->
+body {
+  margin: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: 'Comic Sans MS', cursive;
+}
+
+.logo {
+  font-size: 120px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-30px); }
+}
+```
+
+**Testing Strategy**:
+```python
+# tests/test_web_server.py
+def test_server_serves_splash():
+    """Test server serves splash.html."""
+    response = client.get('/')
+    assert response.status_code == 200
+    assert b'BobaVision' in response.data
+
+def test_websocket_connection():
+    """Test WebSocket connection."""
+    with client.websocket('/ws') as ws:
+        ws.send_json({'action': 'connect'})
+        data = ws.receive_json()
+        assert data['status'] == 'connected'
+
+# tests/test_browser_manager.py
+def test_launch_kiosk(mock_popen):
+    """Test Chromium launches in kiosk mode."""
+    browser = BrowserManager()
+    browser.launch_kiosk('http://localhost:5000')
+
+    mock_popen.assert_called_once()
+    args = mock_popen.call_args[0][0]
+    assert '--kiosk' in args
+    assert 'chromium-browser' in args[0]
+```
+
+**Development Workflow**:
+1. Start Python client app (runs web server + browser)
+2. Edit HTML/CSS files
+3. Refresh browser to see changes
+4. No build step, no compilation needed!
+
+**Success Criteria**:
+- [ ] Boot to splash screen in < 35 seconds
+- [ ] No visible console/cursor
+- [ ] Smooth CSS animations (60fps)
+- [ ] Beautiful visuals that kids love
+- [ ] Press button → immediate response
+- [ ] Video plays fullscreen, browser hidden
+- [ ] Child (4-6 years) can use independently
+- [ ] Can edit CSS and see changes immediately
+
+### Phase 5: Hardware Integration & Deployment
+
+**Goal**: Client runs automatically on boot on physical trolley
+
+**Tasks**:
+1. Physical hardware mounting
+2. Create systemd service file
+3. Configure auto-start
+4. Set up logging
+5. Test on actual hardware
+6. Optimize performance
 
 **systemd Service**:
 
