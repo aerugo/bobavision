@@ -1,0 +1,41 @@
+# Docker Compose configuration for bobavision Kids Media Station
+# ADR-007: Server Containerization for easy deployment
+
+version: '3.8'
+
+services:
+  # FastAPI server with mpv
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: bobavision-server
+    ports:
+      - "8000:8000"
+    volumes:
+      # Database persistence
+      - ./data:/app/data
+      # Media library (mount your video files here)
+      - ./media:/app/media
+      # Optional: Admin UI static files
+      - ./server/static:/app/server/static
+    environment:
+      - DATABASE_URL=/app/data/bobavision.db
+      - MEDIA_DIRECTORY=/app/media/library
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/', timeout=5.0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  # Named volumes for data persistence
+  data:
+  media:
+
+networks:
+  default:
+    name: bobavision-network

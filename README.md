@@ -45,12 +45,69 @@ This system allows children to watch videos with one button press while parents 
 
 ### Prerequisites
 
+**Choose one deployment method:**
+
+#### Option A: Docker (Recommended for Production)
+- [Docker](https://www.docker.com/) - Container runtime
+- [Docker Compose](https://docs.docker.com/compose/) - Multi-container orchestration
+
+#### Option B: Native Python (Development)
 - Python 3.11+
 - [UV](https://astral.sh/uv) - Fast Python package manager (for server & client)
 - [Bun](https://bun.sh) - Fast JavaScript runtime (for admin UI)
 - Raspberry Pi OS (for client hardware)
 
-### Server Setup
+---
+
+### Server Setup (Docker) - RECOMMENDED
+
+The containerized setup includes all dependencies (Python, FastAPI, mpv, ffmpeg) with zero configuration:
+
+```bash
+# Clone repository
+git clone <repo-url>
+cd bobavision
+
+# Start server with docker-compose
+docker-compose up -d
+
+# Server is now running at http://localhost:8000
+# API docs available at http://localhost:8000/docs
+```
+
+**Data persistence**: The container automatically creates:
+- `./data/` - SQLite database
+- `./media/` - Video library directory
+
+To add videos:
+```bash
+# Copy videos to media directory
+cp /path/to/videos/*.mp4 ./media/library/
+
+# Trigger library scan
+curl -X POST http://localhost:8000/api/videos/scan
+```
+
+**Container commands**:
+```bash
+# View logs
+docker-compose logs -f server
+
+# Stop server
+docker-compose down
+
+# Rebuild after code changes
+docker-compose up -d --build
+
+# Access container shell
+docker-compose exec server sh
+```
+
+---
+
+### Server Setup (Native Python) - DEVELOPMENT
+
+For active development with hot-reload:
 
 ```bash
 cd server
@@ -64,7 +121,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Run tests
 pytest
 
-# Start server
+# Start server with auto-reload
 uvicorn src.main:app --reload --port 8000
 ```
 
@@ -151,8 +208,16 @@ Types: test, feat, refactor, fix, docs, chore
 
 ## Current Status
 
-**Phase**: 0 - Project Setup (Complete)
-**Next**: Phase 1 - Minimal Vertical Slice
+**Phase**: 4 - Client Application & Kid-Friendly UI (Complete - 75%)
+**Current**: Phase 5 - Server Containerization (In Progress)
+**Next**: Phase 5 - Hardware Integration & Polish
+
+### Recent Updates (2025-11-18)
+- ✅ Phase 0-4 Complete: Full server, admin UI, and client implementation
+- 🐳 **NEW**: Docker containerization with mpv (ADR-007)
+- 📦 Server now deployable as a single container with all dependencies
+- 🎯 305 unit tests + 24 E2E tests passing
+- 📊 Server coverage: 98.29% | Client: 85% | Admin: 89.04%
 
 See [docs/grand_plan.md](docs/grand_plan.md) for complete roadmap.
 
@@ -184,6 +249,7 @@ See [docs/hardware_setup.md](docs/hardware_setup.md) (Phase 4) for detailed asse
 - **Frontend**: React, TypeScript, Vite, Tailwind CSS
 - **Testing**: pytest, Vitest, React Testing Library
 - **Package Management**: UV (Python), Bun (JavaScript)
+- **Deployment**: Docker, Docker Compose (containerized with mpv)
 
 ## License
 
