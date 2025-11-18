@@ -52,6 +52,28 @@ class ClientUpdate(BaseModel):
     tag_filters: Optional[str] = Field(None, description="Comma-separated tags for filtering")
 
 
+# Video management schemas
+class VideoResponse(BaseModel):
+    """Response schema for video data."""
+    id: int
+    path: str
+    title: str
+    tags: Optional[str] = None
+    is_placeholder: bool
+    duration_seconds: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ScanResponse(BaseModel):
+    """Response schema for video scan operation."""
+    added: int = Field(..., description="Number of videos added to database")
+    skipped: int = Field(..., description="Number of videos skipped (already in DB)")
+    total_found: int = Field(..., description="Total video files found")
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Kids Media Station API",
@@ -292,6 +314,136 @@ def update_client(
     updated_client = client_repo.update(client_id, **update_data)
 
     return updated_client
+
+
+# Video management endpoints
+@app.get("/api/videos", response_model=List[VideoResponse])
+def get_videos(
+    is_placeholder: Optional[bool] = Query(None, description="Filter by placeholder status"),
+    tags: Optional[str] = Query(None, description="Filter by tags"),
+    db: Session = Depends(get_db)
+):
+    """Get all videos from database.
+
+    Args:
+        is_placeholder: Optional filter for placeholder status
+        tags: Optional filter for videos with specific tags
+        db: Database session
+
+    Returns:
+        List of all videos sorted by title
+    """
+    video_repo = VideoRepository(db)
+
+    # Get all videos
+    videos = video_repo.get_all()
+
+    # Apply filters if provided
+    if is_placeholder is not None:
+        videos = [v for v in videos if v.is_placeholder == is_placeholder]
+
+    if tags is not None:
+        videos = [v for v in videos if v.tags and tags in v.tags]
+
+    # Sort by title for consistent ordering
+    return sorted(videos, key=lambda v: v.title)
+
+
+@app.post("/api/videos/scan", response_model=ScanResponse)
+def scan_videos(db: Session = Depends(get_db)):
+    """Scan media directory and add new videos to database.
+
+    Returns:
+        Scan results with counts of added, skipped, and total files
+    """
+    from src.media.scanner import VideoScanner
+
+    # Get media directory
+    media_dir = Path(MEDIA_DIRECTORY)
+
+    # Check if directory exists
+    if not media_dir.exists():
+        return ScanResponse(added=0, skipped=0, total_found=0)
+
+    # Scan for videos
+    scanner = VideoScanner(str(media_dir))
+    video_paths = scanner.scan()
+
+    # Process each video
+    video_repo = VideoRepository(db)
+    added = 0
+    skipped = 0
+
+    for video_path in video_paths:
+        # Check if video already exists
+        existing = video_repo.get_by_path(video_path)
+        if existing is not None:
+            skipped += 1
+            continue
+
+        # Generate title from filename
+        title = _generate_title_from_path(video_path)
+
+        # Extract tags from directory
+        tags = _extract_tags_from_path(video_path)
+
+        # Determine if placeholder
+        is_placeholder = "placeholder" in video_path.lower()
+
+        # Create video record
+        video_repo.create(
+            path=video_path,
+            title=title,
+            tags=tags,
+            is_placeholder=is_placeholder
+        )
+        added += 1
+
+    return ScanResponse(
+        added=added,
+        skipped=skipped,
+        total_found=len(video_paths)
+    )
+
+
+def _generate_title_from_path(path: str) -> str:
+    """Generate a readable title from video file path.
+
+    Args:
+        path: Video file path (e.g. "cartoons/peppa.mp4")
+
+    Returns:
+        Formatted title (e.g. "Peppa")
+    """
+    # Get filename without extension
+    filename = Path(path).stem
+
+    # Replace underscores and hyphens with spaces
+    title = filename.replace("_", " ").replace("-", " ")
+
+    # Capitalize first letter of each word
+    title = title.title()
+
+    return title
+
+
+def _extract_tags_from_path(path: str) -> Optional[str]:
+    """Extract tags from directory name in path.
+
+    Args:
+        path: Video file path (e.g. "cartoons/peppa.mp4")
+
+    Returns:
+        Tag string (e.g. "cartoons") or None if in root
+    """
+    # Get parent directory name
+    parent = Path(path).parent
+
+    if parent == Path("."):
+        return None
+
+    # Use directory name as tag
+    return str(parent).split("/")[0]
 
 
 # Mount static files for media serving
