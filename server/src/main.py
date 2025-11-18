@@ -394,12 +394,15 @@ def create_client(client_data: ClientCreate, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/clients/{client_id}", response_model=ClientResponse)
+@app.put("/api/clients/{client_id}", response_model=ClientResponse)
 def update_client(
     client_id: str,
     client_data: ClientUpdate,
     db: Session = Depends(get_db)
 ):
     """Update an existing client.
+
+    Supports both PATCH and PUT methods for partial updates.
 
     Args:
         client_id: Unique client identifier
