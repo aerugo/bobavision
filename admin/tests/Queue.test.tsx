@@ -334,4 +334,98 @@ describe('Queue', () => {
       expect(screen.getByText(/2 videos in queue/i)).toBeInTheDocument();
     });
   });
+
+  it('should open video selection modal when Add Videos button is clicked', async () => {
+    const mockClients = [
+      { client_id: 'client1', friendly_name: 'Living Room', daily_limit: 3, created_at: '2024-01-01', updated_at: '2024-01-01' }
+    ];
+    const mockVideos = [
+      { id: 1, title: 'Big Buck Bunny', path: 'BigBuckBunny.mp4', is_placeholder: false, created_at: '2024-01-01' },
+      { id: 2, title: 'Elephant Dream', path: 'ElephantsDream.mp4', is_placeholder: false, created_at: '2024-01-02' }
+    ];
+
+    vi.mocked(apiModule.api.getClients).mockResolvedValue(mockClients);
+    vi.mocked(apiModule.api.getQueue).mockResolvedValue([]);
+    vi.mocked(apiModule.api.getVideos).mockResolvedValue(mockVideos);
+
+    render(<Queue />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Living Room')).toBeInTheDocument();
+    });
+
+    const clientButton = screen.getByText('Living Room');
+    fireEvent.click(clientButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /add videos/i })).toBeInTheDocument();
+    });
+
+    const addVideosButton = screen.getByRole('button', { name: /add videos/i });
+    fireEvent.click(addVideosButton);
+
+    await waitFor(() => {
+      expect(apiModule.api.getVideos).toHaveBeenCalled();
+      expect(screen.getByText('Big Buck Bunny')).toBeInTheDocument();
+      expect(screen.getByText('Elephant Dream')).toBeInTheDocument();
+    });
+  });
+
+  it('should add selected videos to queue when confirmed', async () => {
+    const mockClients = [
+      { client_id: 'client1', friendly_name: 'Living Room', daily_limit: 3, created_at: '2024-01-01', updated_at: '2024-01-01' }
+    ];
+    const mockVideos = [
+      { id: 1, title: 'Big Buck Bunny', path: 'BigBuckBunny.mp4', is_placeholder: false, created_at: '2024-01-01' }
+    ];
+    const mockQueue = [
+      {
+        id: 1,
+        video_id: 1,
+        position: 1,
+        created_at: '2024-01-01',
+        video: { id: 1, title: 'Big Buck Bunny', path: 'BigBuckBunny.mp4', is_placeholder: false }
+      }
+    ];
+
+    vi.mocked(apiModule.api.getClients).mockResolvedValue(mockClients);
+    vi.mocked(apiModule.api.getQueue)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(mockQueue);
+    vi.mocked(apiModule.api.getVideos).mockResolvedValue(mockVideos);
+    vi.mocked(apiModule.api.addToQueue).mockResolvedValue({ added: 1, total_in_queue: 1 });
+
+    render(<Queue />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Living Room')).toBeInTheDocument();
+    });
+
+    const clientButton = screen.getByText('Living Room');
+    fireEvent.click(clientButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /add videos/i })).toBeInTheDocument();
+    });
+
+    const addVideosButton = screen.getByRole('button', { name: /add videos/i });
+    fireEvent.click(addVideosButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Big Buck Bunny')).toBeInTheDocument();
+    });
+
+    // Select the video (assuming checkbox interface)
+    const videoCheckbox = screen.getByRole('checkbox', { name: /big buck bunny/i });
+    fireEvent.click(videoCheckbox);
+
+    // Click the Add button in the modal
+    const modalAddButton = screen.getByRole('button', { name: /^add$/i });
+    fireEvent.click(modalAddButton);
+
+    await waitFor(() => {
+      expect(apiModule.api.addToQueue).toHaveBeenCalledWith('client1', [1]);
+      expect(apiModule.api.getQueue).toHaveBeenCalledTimes(2); // Once on client select, once after adding
+    });
+  });
 });
