@@ -1,0 +1,32 @@
+/* Common styles shared across all screens */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    color: white;
+}
+
+.container {
+    text-align: center;
+    padding: 40px;
+}
+
+h1 {
+    font-size: 4rem;
+    margin: 20px 0;
+}
+
+p {
+    font-size: 2rem;
+    margin: 10px 0;
+}
