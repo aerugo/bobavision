@@ -478,3 +478,110 @@ def test_api_next_queued_videos_count_toward_limit(client_with_db, db_session, s
     today = date.today()
     count = play_repo.count_non_placeholder_plays_today("test_client", today)
     assert count == 2
+
+
+def test_api_next_uses_actual_video_placeholder_field(client_with_db, db_session):
+    """Test that /api/next uses the video's actual is_placeholder field.
+
+    RED phase: This test will fail because the code uses hardcoded is_placeholder
+    values instead of the video's actual field.
+
+    This is critical for limit enforcement - if we log the wrong placeholder status,
+    the count will be incorrect and limits won't be enforced properly.
+    """
+    from src.db.repositories import VideoRepository, ClientRepository, PlayLogRepository
+
+    # Arrange - Create videos with specific is_placeholder values
+    video_repo = VideoRepository(db_session)
+
+    # Create a real video (is_placeholder=False)
+    real_video = video_repo.create(
+        path="real_video.mp4",
+        title="Real Video",
+        is_placeholder=False
+    )
+
+    # Create a placeholder video (is_placeholder=True)
+    placeholder_video = video_repo.create(
+        path="placeholder.mp4",
+        title="All Done",
+        is_placeholder=True
+    )
+
+    # Create client with limit of 1
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test", friendly_name="Test", daily_limit=1)
+
+    # Act - Make 2 requests
+    # First request: should get real video, log as non-placeholder
+    response1 = client_with_db.get("/api/next?client_id=test")
+
+    # Second request: should get placeholder video, log as placeholder
+    response2 = client_with_db.get("/api/next?client_id=test")
+
+    # Assert - Check that plays were logged with ACTUAL video is_placeholder values
+    play_repo = PlayLogRepository(db_session)
+    plays = play_repo.get_recent_plays("test", limit=10)
+
+    # Should have 2 plays
+    assert len(plays) == 2
+
+    # CRITICAL: The logged is_placeholder should match the VIDEO's is_placeholder field
+    # Not a hardcoded value based on limit status
+
+    # First play should be logged as non-placeholder (because video.is_placeholder=False)
+    first_play = plays[1]  # Most recent is at index 0, so first play is at index 1
+    assert first_play.video_id == real_video.id
+    assert first_play.is_placeholder == real_video.is_placeholder  # Should be False
+
+    # Second play should be logged as placeholder (because video.is_placeholder=True)
+    second_play = plays[0]  # Most recent
+    assert second_play.video_id == placeholder_video.id
+    assert second_play.is_placeholder == placeholder_video.is_placeholder  # Should be True
+
+
+def test_api_next_enforces_limit_strictly(client_with_db, db_session):
+    """Test that limit enforcement is strict - exactly N real videos, then only placeholders.
+
+    RED phase: This test verifies the core requirement - after N videos, only placeholders.
+    If this fails, it means the limit is not being enforced correctly.
+    """
+    from src.db.repositories import VideoRepository, ClientRepository, PlayLogRepository
+
+    # Arrange - Create videos
+    video_repo = VideoRepository(db_session)
+    for i in range(5):
+        video_repo.create(
+            path=f"video{i}.mp4",
+            title=f"Video {i}",
+            is_placeholder=False
+        )
+    video_repo.create(
+        path="placeholder.mp4",
+        title="All Done",
+        is_placeholder=True
+    )
+
+    # Create client with limit of 3
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
+
+    # Act - Make 10 requests
+    responses = []
+    for i in range(10):
+        response = client_with_db.get("/api/next?client_id=test")
+        responses.append(response.json())
+        print(f"Request {i+1}: placeholder={responses[i]['placeholder']}, title={responses[i]['title']}")
+
+    # Assert - First 3 should be real, rest should be placeholders
+    for i, resp in enumerate(responses):
+        if i < 3:
+            assert resp["placeholder"] is False, f"Request {i+1} should be real video, got placeholder"
+        else:
+            assert resp["placeholder"] is True, f"Request {i+1} should be placeholder, got real video"
+
+    # Verify play count
+    play_repo = PlayLogRepository(db_session)
+    from datetime import date
+    count = play_repo.count_non_placeholder_plays_today("test", date.today())
+    assert count == 3, f"Expected 3 non-placeholder plays, got {count}"
