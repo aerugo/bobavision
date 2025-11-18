@@ -135,6 +135,14 @@ class ClientRepository:
         """
         self.db = db
 
+    def get_all(self) -> List[ClientSettings]:
+        """Get all clients.
+
+        Returns:
+            List of all ClientSettings objects
+        """
+        return self.db.query(ClientSettings).all()
+
     def get_by_id(self, client_id: str) -> Optional[ClientSettings]:
         """Get client by ID.
 

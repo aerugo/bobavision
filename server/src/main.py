@@ -2,11 +2,12 @@
 
 Phase 2: Updated with database integration and daily limits.
 """
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
-from fastapi import FastAPI, Query, Depends
+from typing import Optional, List
+from fastapi import FastAPI, Query, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.db.database import get_db, init_db
@@ -20,6 +21,35 @@ class NextVideoResponse(BaseModel):
     url: str
     title: str
     placeholder: bool
+
+
+# Client management schemas
+class ClientResponse(BaseModel):
+    """Response schema for client data."""
+    client_id: str
+    friendly_name: str
+    daily_limit: int
+    tag_filters: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ClientCreate(BaseModel):
+    """Request schema for creating a new client."""
+    client_id: str = Field(..., min_length=1, description="Unique client identifier")
+    friendly_name: str = Field(..., min_length=1, description="Human-readable client name")
+    daily_limit: int = Field(default=3, gt=0, description="Daily video limit")
+    tag_filters: Optional[str] = Field(default=None, description="Comma-separated tags for filtering")
+
+
+class ClientUpdate(BaseModel):
+    """Request schema for updating a client."""
+    friendly_name: Optional[str] = Field(None, min_length=1, description="Human-readable client name")
+    daily_limit: Optional[int] = Field(None, gt=0, description="Daily video limit")
+    tag_filters: Optional[str] = Field(None, description="Comma-separated tags for filtering")
 
 
 # Create FastAPI app
@@ -152,6 +182,116 @@ def get_next_video(
         title=video.title,
         placeholder=is_placeholder
     )
+
+
+# Client management endpoints
+@app.get("/api/clients", response_model=List[ClientResponse])
+def get_clients(db: Session = Depends(get_db)):
+    """Get all clients.
+
+    Returns:
+        List of all registered clients sorted by client_id
+    """
+    client_repo = ClientRepository(db)
+    clients = client_repo.get_all()
+    # Sort by client_id for consistent ordering
+    return sorted(clients, key=lambda c: c.client_id)
+
+
+@app.get("/api/clients/{client_id}", response_model=ClientResponse)
+def get_client(client_id: str, db: Session = Depends(get_db)):
+    """Get a specific client by ID.
+
+    Args:
+        client_id: Unique client identifier
+
+    Returns:
+        Client details
+
+    Raises:
+        HTTPException: 404 if client not found
+    """
+    client_repo = ClientRepository(db)
+    client = client_repo.get_by_id(client_id)
+
+    if client is None:
+        raise HTTPException(status_code=404, detail=f"Client '{client_id}' not found")
+
+    return client
+
+
+@app.post("/api/clients", response_model=ClientResponse, status_code=201)
+def create_client(client_data: ClientCreate, db: Session = Depends(get_db)):
+    """Create a new client.
+
+    Args:
+        client_data: Client creation data
+
+    Returns:
+        Created client details
+
+    Raises:
+        HTTPException: 409 if client_id already exists
+    """
+    client_repo = ClientRepository(db)
+
+    # Check if client already exists
+    existing_client = client_repo.get_by_id(client_data.client_id)
+    if existing_client is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Client '{client_data.client_id}' already exists"
+        )
+
+    # Create new client
+    client = client_repo.create(
+        client_id=client_data.client_id,
+        friendly_name=client_data.friendly_name,
+        daily_limit=client_data.daily_limit,
+        tag_filters=client_data.tag_filters
+    )
+
+    return client
+
+
+@app.patch("/api/clients/{client_id}", response_model=ClientResponse)
+def update_client(
+    client_id: str,
+    client_data: ClientUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update an existing client.
+
+    Args:
+        client_id: Unique client identifier
+        client_data: Fields to update
+
+    Returns:
+        Updated client details
+
+    Raises:
+        HTTPException: 404 if client not found
+    """
+    client_repo = ClientRepository(db)
+
+    # Check if client exists
+    existing_client = client_repo.get_by_id(client_id)
+    if existing_client is None:
+        raise HTTPException(status_code=404, detail=f"Client '{client_id}' not found")
+
+    # Build update dict with only provided fields
+    update_data = {}
+    if client_data.friendly_name is not None:
+        update_data["friendly_name"] = client_data.friendly_name
+    if client_data.daily_limit is not None:
+        update_data["daily_limit"] = client_data.daily_limit
+    if client_data.tag_filters is not None:
+        update_data["tag_filters"] = client_data.tag_filters
+
+    # Update client
+    updated_client = client_repo.update(client_id, **update_data)
+
+    return updated_client
 
 
 # Mount static files for media serving
