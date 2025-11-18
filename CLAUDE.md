@@ -65,7 +65,8 @@ This is a custom media player system for young children with three main goals:
 
 3. **Set Up Your Environment**:
    - Python 3.11+ installed
-   - Node.js 18+ and npm installed
+   - UV installed (Python package manager - https://astral.sh/uv)
+   - Bun installed (JavaScript runtime - https://bun.sh)
    - Git configured
 
 4. **Check Current Phase**:
@@ -77,9 +78,9 @@ This is a custom media player system for young children with three main goals:
 
 **What to do right now**:
 
-- [ ] Set up Python environment for server (see [server/CLAUDE.md](server/CLAUDE.md))
-- [ ] Set up Python environment for client (see [client/CLAUDE.md](client/CLAUDE.md))
-- [ ] Set up Node/npm environment for admin (see [admin/CLAUDE.md](admin/CLAUDE.md))
+- [ ] Set up Python/UV environment for server (see [server/CLAUDE.md](server/CLAUDE.md))
+- [ ] Set up Python/UV environment for client (see [client/CLAUDE.md](client/CLAUDE.md))
+- [ ] Set up Bun environment for admin (see [admin/CLAUDE.md](admin/CLAUDE.md))
 - [ ] Configure test frameworks for all components
 - [ ] Create .gitignore
 - [ ] Create README.md
@@ -260,7 +261,7 @@ pytest
 
 # Admin tests
 cd admin
-npm test
+bun test
 ```
 
 ### Running Development Servers
@@ -272,7 +273,7 @@ uvicorn src.main:app --reload --port 8000
 
 # Admin UI (Phase 3+)
 cd admin
-npm run dev
+bun run dev
 ```
 
 ### Adding a New Video to Library
@@ -298,7 +299,7 @@ pytest --cov=src --cov-report=html
 
 # Admin
 cd admin
-npm run test:coverage
+bun run test:coverage
 ```
 
 ---
