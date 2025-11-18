@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, Client, QueueItem } from '../services/api';
+import { api, Client, QueueItem, Video } from '../services/api';
 
 function Queue() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -8,6 +8,10 @@ function Queue() {
   const [loading, setLoading] = useState(true);
   const [queueLoading, setQueueLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [availableVideos, setAvailableVideos] = useState<Video[]>([]);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
 
   const fetchClients = async () => {
     try {
@@ -69,6 +73,53 @@ function Queue() {
     } catch (err) {
       console.error('Failed to clear queue:', err);
       setError('Error: Failed to clear queue');
+    }
+  };
+
+  const handleOpenAddModal = async () => {
+    try {
+      setVideosLoading(true);
+      setShowAddModal(true);
+      const videos = await api.getVideos({ is_placeholder: false });
+      setAvailableVideos(videos);
+      setSelectedVideoIds([]);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch videos:', err);
+      setError('Error: Failed to load videos');
+      setShowAddModal(false);
+    } finally {
+      setVideosLoading(false);
+    }
+  };
+
+  const handleCloseAddModal = () => {
+    setShowAddModal(false);
+    setAvailableVideos([]);
+    setSelectedVideoIds([]);
+  };
+
+  const handleToggleVideo = (videoId: number) => {
+    setSelectedVideoIds(prev => {
+      if (prev.includes(videoId)) {
+        return prev.filter(id => id !== videoId);
+      } else {
+        return [...prev, videoId];
+      }
+    });
+  };
+
+  const handleAddToQueue = async () => {
+    if (!selectedClientId || selectedVideoIds.length === 0) return;
+
+    try {
+      await api.addToQueue(selectedClientId, selectedVideoIds);
+      handleCloseAddModal();
+      // Reload queue
+      await fetchQueue(selectedClientId);
+    } catch (err) {
+      console.error('Failed to add to queue:', err);
+      setError('Error: Failed to add videos to queue');
     }
   };
 
@@ -137,7 +188,7 @@ function Queue() {
             </div>
             <div className="space-x-2">
               <button
-                onClick={() => {/* TODO: Implement add videos */}}
+                onClick={handleOpenAddModal}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Add Videos
@@ -191,6 +242,65 @@ function Queue() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Add Videos Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Add Videos to Queue</h3>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              {videosLoading ? (
+                <div className="text-gray-600">Loading videos...</div>
+              ) : availableVideos.length === 0 ? (
+                <div className="text-gray-500">No videos available</div>
+              ) : (
+                <div className="space-y-2">
+                  {availableVideos.map((video) => (
+                    <label
+                      key={video.id}
+                      className="flex items-center p-3 hover:bg-gray-50 rounded-md cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedVideoIds.includes(video.id)}
+                        onChange={() => handleToggleVideo(video.id)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        aria-label={video.title}
+                      />
+                      <div className="ml-3 flex-1">
+                        <p className="text-sm font-medium text-gray-900">{video.title}</p>
+                        <p className="text-sm text-gray-500">{video.path}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={handleCloseAddModal}
+                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddToQueue}
+                disabled={selectedVideoIds.length === 0}
+                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
