@@ -11,7 +11,19 @@ import sys
 import threading
 from typing import Optional
 
-from pynput import keyboard
+try:
+    from pynput import keyboard
+except ImportError as e:
+    print("ERROR: pynput is not installed or not available")
+    print("Please install dependencies with: uv sync")
+    print(f"Details: {e}")
+    sys.exit(1)
+except Exception as e:
+    print("ERROR: pynput failed to initialize")
+    print("This may happen in headless environments without X11/display")
+    print("On macOS/Linux with GUI, ensure you have the necessary permissions")
+    print(f"Details: {e}")
+    sys.exit(1)
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
