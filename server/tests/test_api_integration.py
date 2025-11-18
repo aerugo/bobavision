@@ -288,3 +288,193 @@ def test_api_next_increments_play_count(client_with_db, db_session, setup_videos
     # Assert - Should have 3 plays logged
     plays = play_repo.get_recent_plays("test", limit=10)
     assert len(plays) == 3
+
+
+# Queue-first behavior tests
+def test_api_next_returns_queued_video_when_queue_not_empty(client_with_db, db_session, setup_videos):
+    """Test that /api/next returns queued video when queue has items.
+
+    RED phase: Queue-first logic not implemented yet.
+    This is the core queue behavior - queued videos should be served first.
+    """
+    from src.db.repositories import QueueRepository, ClientRepository
+
+    # Arrange - Create client and add video to queue
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=3)
+
+    queue_repo = QueueRepository(db_session)
+    queued_video = setup_videos[0]  # video1.mp4
+    queue_repo.add(client_id="test_client", video_id=queued_video.id)
+
+    # Act
+    response = client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should return the queued video
+    assert data["title"] == queued_video.title
+    assert queued_video.path in data["url"]
+    assert data["placeholder"] is False
+
+
+def test_api_next_removes_video_from_queue_after_serving(client_with_db, db_session, setup_videos):
+    """Test that video is removed from queue after being served."""
+    from src.db.repositories import QueueRepository, ClientRepository
+
+    # Arrange
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=3)
+
+    queue_repo = QueueRepository(db_session)
+    queue_repo.add(client_id="test_client", video_id=setup_videos[0].id)
+
+    # Act
+    client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert - Queue should be empty
+    queue = queue_repo.get_by_client("test_client")
+    assert len(queue) == 0
+
+
+def test_api_next_returns_queued_videos_in_order(client_with_db, db_session, setup_videos):
+    """Test that queued videos are returned in the correct order."""
+    from src.db.repositories import QueueRepository, ClientRepository
+
+    # Arrange - Add 3 videos to queue in specific order
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=10)
+
+    queue_repo = QueueRepository(db_session)
+    queue_repo.add(client_id="test_client", video_id=setup_videos[0].id)  # video1.mp4
+    queue_repo.add(client_id="test_client", video_id=setup_videos[1].id)  # video2.mp4
+    queue_repo.add(client_id="test_client", video_id=setup_videos[2].id)  # video3.mp4
+
+    # Act - Make 3 requests
+    response1 = client_with_db.get("/api/next?client_id=test_client")
+    response2 = client_with_db.get("/api/next?client_id=test_client")
+    response3 = client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert - Should get videos in queue order
+    assert setup_videos[0].title in response1.json()["title"]
+    assert setup_videos[1].title in response2.json()["title"]
+    assert setup_videos[2].title in response3.json()["title"]
+
+
+def test_api_next_ignores_limit_for_queued_videos(client_with_db, db_session, setup_videos):
+    """Test that queued videos bypass daily limit.
+
+    This is important - parents should be able to queue videos even if
+    the child has reached their daily limit.
+    """
+    from src.db.repositories import QueueRepository, ClientRepository
+
+    # Arrange - Create client with limit of 1
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=1)
+
+    # Exhaust the limit with a regular video
+    client_with_db.get("/api/next?client_id=test_client")
+
+    # Now add videos to queue
+    queue_repo = QueueRepository(db_session)
+    queue_repo.add(client_id="test_client", video_id=setup_videos[0].id)
+    queue_repo.add(client_id="test_client", video_id=setup_videos[1].id)
+
+    # Act - Request more videos (should serve from queue, not placeholder)
+    response1 = client_with_db.get("/api/next?client_id=test_client")
+    response2 = client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert - Should get queued videos, not placeholders
+    assert response1.json()["placeholder"] is False
+    assert response2.json()["placeholder"] is False
+    assert setup_videos[0].title in response1.json()["title"]
+    assert setup_videos[1].title in response2.json()["title"]
+
+
+def test_api_next_falls_back_to_limit_logic_when_queue_empty(client_with_db, db_session, setup_videos):
+    """Test that normal limit logic applies after queue is exhausted."""
+    from src.db.repositories import QueueRepository, ClientRepository
+
+    # Arrange - Create client with limit of 2
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=2)
+
+    # Add one video to queue
+    queue_repo = QueueRepository(db_session)
+    queue_repo.add(client_id="test_client", video_id=setup_videos[0].id)
+
+    # Act - First request serves from queue (counts as 1/2)
+    response1 = client_with_db.get("/api/next?client_id=test_client")
+
+    # Second request should serve random video (counts as 2/2, reaching limit)
+    response2 = client_with_db.get("/api/next?client_id=test_client")
+
+    # Third request should serve placeholder (at limit)
+    response3 = client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert
+    assert response1.json()["placeholder"] is False  # Queued video (1/2)
+    assert response2.json()["placeholder"] is False  # Random video (2/2, at limit now)
+    assert response3.json()["placeholder"] is True   # Placeholder (still at limit)
+
+
+def test_api_next_logs_queued_video_plays(client_with_db, db_session, setup_videos):
+    """Test that queued video plays are logged in play_log."""
+    from src.db.repositories import QueueRepository, ClientRepository, PlayLogRepository
+
+    # Arrange
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=3)
+
+    queue_repo = QueueRepository(db_session)
+    queued_video = setup_videos[0]
+    queue_repo.add(client_id="test_client", video_id=queued_video.id)
+
+    # Act
+    client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert - Play should be logged
+    play_repo = PlayLogRepository(db_session)
+    plays = play_repo.get_recent_plays("test_client", limit=1)
+
+    assert len(plays) == 1
+    assert plays[0].video_id == queued_video.id
+    assert plays[0].is_placeholder is False
+
+
+def test_api_next_queued_videos_count_toward_limit(client_with_db, db_session, setup_videos):
+    """Test that queued video plays count toward daily limit.
+
+    Even though queued videos bypass the limit check, they should still
+    count as plays for the day. This ensures proper tracking.
+    """
+    from src.db.repositories import QueueRepository, ClientRepository, PlayLogRepository
+
+    # Arrange - Client with limit of 2
+    client_repo = ClientRepository(db_session)
+    client_repo.create(client_id="test_client", friendly_name="Test", daily_limit=2)
+
+    # Add one video to queue
+    queue_repo = QueueRepository(db_session)
+    queue_repo.add(client_id="test_client", video_id=setup_videos[0].id)
+
+    # Act - Play queued video (counts as 1)
+    client_with_db.get("/api/next?client_id=test_client")
+
+    # Play random video (counts as 2, reaching limit)
+    client_with_db.get("/api/next?client_id=test_client")
+
+    # Next request should be placeholder
+    response = client_with_db.get("/api/next?client_id=test_client")
+
+    # Assert - Should get placeholder since limit reached
+    assert response.json()["placeholder"] is True
+
+    # Verify 2 non-placeholder plays logged
+    play_repo = PlayLogRepository(db_session)
+    today = date.today()
+    count = play_repo.count_non_placeholder_plays_today("test_client", today)
+    assert count == 2

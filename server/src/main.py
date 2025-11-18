@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.db.database import get_db, init_db
-from src.db.repositories import VideoRepository, ClientRepository, PlayLogRepository
+from src.db.repositories import VideoRepository, ClientRepository, PlayLogRepository, QueueRepository
 from src.services.limit_service import LimitService
 
 
@@ -72,6 +72,40 @@ class ScanResponse(BaseModel):
     added: int = Field(..., description="Number of videos added to database")
     skipped: int = Field(..., description="Number of videos skipped (already in DB)")
     total_found: int = Field(..., description="Total video files found")
+
+
+# Queue management schemas
+class QueueItemResponse(BaseModel):
+    """Response schema for queue item."""
+    id: int
+    video_id: int
+    position: int
+    created_at: datetime
+    video: VideoResponse  # Nested video details
+
+    class Config:
+        from_attributes = True
+
+
+class QueueAddRequest(BaseModel):
+    """Request schema for adding videos to queue."""
+    video_ids: List[int] = Field(..., min_length=1, description="List of video IDs to add to queue")
+
+
+class QueueAddResponse(BaseModel):
+    """Response schema for add to queue operation."""
+    added: int = Field(..., description="Number of videos added")
+    total_in_queue: int = Field(..., description="Total items in queue after adding")
+
+
+class QueueClearResponse(BaseModel):
+    """Response schema for clear queue operation."""
+    removed: int = Field(..., description="Number of items removed from queue")
+
+
+class QueueReorderRequest(BaseModel):
+    """Request schema for reordering queue."""
+    queue_ids: List[int] = Field(..., min_length=1, description="List of queue item IDs in new order")
 
 
 # Create FastAPI app
@@ -135,8 +169,9 @@ def get_next_video(
 ):
     """Get the next video for a client.
 
-    Phase 2: Enforces daily limits, logs plays, returns placeholders when limit reached.
-    Phase 3 will add queue support.
+    Phase 3: Queue-first logic - checks queue before limit enforcement.
+    - If queue has items, serve from queue (bypasses daily limit)
+    - If queue is empty, use limit-based logic (random or placeholder)
 
     Args:
         client_id: Unique identifier for the client device
@@ -150,6 +185,7 @@ def get_next_video(
     client_repo = ClientRepository(db)
     play_log_repo = PlayLogRepository(db)
     limit_service = LimitService(db)
+    queue_repo = QueueRepository(db)
 
     # Get or create client
     client = client_repo.get_or_create(
@@ -157,6 +193,39 @@ def get_next_video(
         friendly_name=f"Client {client_id}"
     )
 
+    # PHASE 3: Check queue first
+    queue_item = queue_repo.get_next(client_id)
+
+    if queue_item:
+        # Queue has items - serve from queue (bypasses limit)
+        video = video_repo.get_by_id(queue_item.video_id)
+
+        if video is None:
+            # Video in queue doesn't exist - remove queue item and fallback
+            queue_repo.remove(queue_item.id)
+        else:
+            # Remove from queue and serve
+            queue_repo.remove(queue_item.id)
+
+            is_placeholder = video.is_placeholder
+
+            # Log the play
+            play_log_repo.log_play(
+                client_id=client_id,
+                video_id=video.id,
+                is_placeholder=is_placeholder
+            )
+
+            # Build URL path
+            url = f"/media/library/{video.path}"
+
+            return NextVideoResponse(
+                url=url,
+                title=video.title,
+                placeholder=is_placeholder
+            )
+
+    # Queue is empty - use limit-based logic
     # Check if daily limit reached
     today = date.today()
     limit_reached = limit_service.is_limit_reached(client_id, today)
@@ -444,6 +513,174 @@ def _extract_tags_from_path(path: str) -> Optional[str]:
 
     # Use directory name as tag
     return str(parent).split("/")[0]
+
+
+# Queue management endpoints
+@app.get("/api/queue/{client_id}", response_model=List[QueueItemResponse])
+def get_queue(client_id: str, db: Session = Depends(get_db)):
+    """Get client's queue.
+
+    Args:
+        client_id: Client identifier
+        db: Database session
+
+    Returns:
+        List of queue items sorted by position
+    """
+    from src.db.repositories import QueueRepository
+
+    queue_repo = QueueRepository(db)
+    queue = queue_repo.get_by_client(client_id)
+
+    return queue
+
+
+@app.post("/api/queue/{client_id}", response_model=QueueAddResponse, status_code=201)
+def add_to_queue(
+    client_id: str,
+    request: QueueAddRequest,
+    db: Session = Depends(get_db)
+):
+    """Add videos to client's queue.
+
+    Args:
+        client_id: Client identifier
+        request: Add request with video IDs
+        db: Database session
+
+    Returns:
+        Add operation results
+
+    Raises:
+        HTTPException: 404 if video not found
+    """
+    from src.db.repositories import QueueRepository, VideoRepository
+
+    video_repo = VideoRepository(db)
+    queue_repo = QueueRepository(db)
+
+    added = 0
+
+    for video_id in request.video_ids:
+        # Verify video exists
+        video = video_repo.get_by_id(video_id)
+        if video is None:
+            raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+
+        # Add to queue
+        queue_repo.add(client_id=client_id, video_id=video_id)
+        added += 1
+
+    # Get total count after adding
+    total = queue_repo.count(client_id)
+
+    return QueueAddResponse(added=added, total_in_queue=total)
+
+
+@app.delete("/api/queue/{client_id}/{queue_id}")
+def remove_from_queue(
+    client_id: str,
+    queue_id: int,
+    db: Session = Depends(get_db)
+):
+    """Remove an item from client's queue.
+
+    Args:
+        client_id: Client identifier
+        queue_id: Queue item ID to remove
+        db: Database session
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: 404 if queue item not found or doesn't belong to client
+    """
+    from src.db.models import Queue
+
+    # Verify queue item exists and belongs to client
+    queue_item = db.query(Queue).filter(
+        Queue.id == queue_id,
+        Queue.client_id == client_id
+    ).first()
+
+    if queue_item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Queue item {queue_id} not found for client {client_id}"
+        )
+
+    # Remove item
+    db.delete(queue_item)
+    db.commit()
+
+    return {"message": "Queue item removed"}
+
+
+@app.post("/api/queue/{client_id}/clear", response_model=QueueClearResponse)
+def clear_queue(client_id: str, db: Session = Depends(get_db)):
+    """Clear all items from client's queue.
+
+    Args:
+        client_id: Client identifier
+        db: Database session
+
+    Returns:
+        Number of items removed
+    """
+    from src.db.repositories import QueueRepository
+
+    queue_repo = QueueRepository(db)
+
+    # Count items before clearing
+    count = queue_repo.count(client_id)
+
+    # Clear queue
+    queue_repo.clear(client_id)
+
+    return QueueClearResponse(removed=count)
+
+
+@app.put("/api/queue/{client_id}/reorder")
+def reorder_queue(
+    client_id: str,
+    request: QueueReorderRequest,
+    db: Session = Depends(get_db)
+):
+    """Reorder client's queue.
+
+    Args:
+        client_id: Client identifier
+        request: Reorder request with queue IDs in new order
+        db: Database session
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: 404 if any queue item not found or doesn't belong to client
+    """
+    from src.db.models import Queue
+
+    # Verify all queue items exist and belong to client
+    for queue_id in request.queue_ids:
+        queue_item = db.query(Queue).filter(
+            Queue.id == queue_id,
+            Queue.client_id == client_id
+        ).first()
+
+        if queue_item is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Queue item {queue_id} not found for client {client_id}"
+            )
+
+    # Reorder
+    from src.db.repositories import QueueRepository
+    queue_repo = QueueRepository(db)
+    queue_repo.reorder(client_id, request.queue_ids)
+
+    return {"message": "Queue reordered"}
 
 
 # Mount static files for media serving
