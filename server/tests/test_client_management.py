@@ -378,3 +378,44 @@ def test_update_client_updates_updated_at_timestamp(client_with_db, sample_clien
 
     updated_client = repo.get_by_id("client1")
     assert updated_client.updated_at > original_updated_at
+
+
+# PUT /api/clients/{client_id} - Update client (alternative to PATCH)
+def test_put_client_updates_settings(client_with_db, sample_clients):
+    """Test that PUT /api/clients/{client_id} updates client settings.
+
+    RED phase: PUT method not supported yet, should return 405.
+    This test reproduces the error: PUT /api/clients/local-test-client returns 405.
+    """
+    # Arrange
+    update_data = {
+        "friendly_name": "Updated Living Room",
+        "daily_limit": 5,
+        "tag_filters": "educational"
+    }
+
+    # Act
+    response = client_with_db.put("/api/clients/client1", json=update_data)
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["client_id"] == "client1"
+    assert data["friendly_name"] == "Updated Living Room"
+    assert data["daily_limit"] == 5
+    assert data["tag_filters"] == "educational"
+
+
+def test_put_client_returns_404_for_nonexistent_client(client_with_db):
+    """Test that PUT /api/clients/{client_id} returns 404 for nonexistent client."""
+    # Arrange
+    update_data = {
+        "friendly_name": "Updated"
+    }
+
+    # Act
+    response = client_with_db.put("/api/clients/nonexistent", json=update_data)
+
+    # Assert
+    assert response.status_code == 404
