@@ -1,15 +1,16 @@
 """Tests for GPIO button handler."""
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from src.button import ButtonHandler
 
 
 class TestButtonInitialization:
     """Test button handler initialization."""
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_initializes_with_gpio_pin(self, mock_button_class):
         """Test that ButtonHandler initializes with correct GPIO pin."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -22,9 +23,11 @@ class TestButtonInitialization:
         mock_button_class.assert_called_once_with(17, pull_up=True, bounce_time=0.1)
         assert handler.gpio_pin == 17
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_initializes_with_callback(self, mock_button_class):
         """Test that ButtonHandler stores callback function."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -36,9 +39,11 @@ class TestButtonInitialization:
         # Assert
         assert handler.callback == mock_callback
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_uses_default_gpio_pin(self, mock_button_class):
         """Test that default GPIO pin is 17."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -50,9 +55,11 @@ class TestButtonInitialization:
         # Assert
         mock_button_class.assert_called_once_with(17, pull_up=True, bounce_time=0.1)
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_assigns_when_pressed_handler(self, mock_button_class):
         """Test that when_pressed is assigned to internal handler."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -69,9 +76,11 @@ class TestButtonInitialization:
 class TestButtonPress:
     """Test button press detection."""
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_press_triggers_callback(self, mock_button_class):
         """Test that button press calls the callback function."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -89,9 +98,11 @@ class TestButtonPress:
         # Assert
         mock_callback.assert_called_once()
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_press_passes_no_arguments(self, mock_button_class):
         """Test that callback is called with no arguments."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -107,9 +118,11 @@ class TestButtonPress:
         # Assert
         mock_callback.assert_called_once_with()
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_multiple_button_presses(self, mock_button_class):
         """Test that multiple button presses trigger multiple callbacks."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -131,9 +144,11 @@ class TestButtonPress:
 class TestButtonConfiguration:
     """Test button configuration options."""
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_with_custom_bounce_time(self, mock_button_class):
         """Test that custom bounce time can be specified."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -145,9 +160,11 @@ class TestButtonConfiguration:
         # Assert
         mock_button_class.assert_called_once_with(17, pull_up=True, bounce_time=0.2)
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_button_with_pull_down(self, mock_button_class):
         """Test that pull_down mode can be specified."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -163,9 +180,11 @@ class TestButtonConfiguration:
 class TestErrorHandling:
     """Test error handling in button handler."""
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_gpio_not_available_logs_warning(self, mock_button_class):
         """Test that GPIO unavailability is handled gracefully."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_class.side_effect = RuntimeError("GPIO not available")
@@ -176,9 +195,11 @@ class TestErrorHandling:
         assert handler.button is None
         assert handler.gpio_available is False
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_callback_exception_is_caught(self, mock_button_class):
         """Test that exceptions in callback are caught and logged."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock(side_effect=Exception("Callback error"))
         mock_button_instance = Mock()
@@ -196,9 +217,11 @@ class TestErrorHandling:
 class TestButtonCleanup:
     """Test button cleanup and resource management."""
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_close_releases_gpio_resources(self, mock_button_class):
         """Test that close() releases GPIO resources."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
@@ -212,9 +235,11 @@ class TestButtonCleanup:
         # Assert
         mock_button_instance.close.assert_called_once()
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_close_handles_no_button_gracefully(self, mock_button_class):
         """Test that close() handles missing button gracefully."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_class.side_effect = RuntimeError("GPIO not available")
@@ -225,9 +250,11 @@ class TestButtonCleanup:
         # Should not raise exception
         handler.close()
 
-    @patch('gpiozero.Button')
+    @patch('src.button.Button')
     def test_context_manager_support(self, mock_button_class):
         """Test that ButtonHandler can be used as context manager."""
+        from src.button import ButtonHandler
+
         # Arrange
         mock_callback = Mock()
         mock_button_instance = Mock()
