@@ -227,7 +227,9 @@ class TestStopVideo:
         """Test that stop() waits briefly for graceful shutdown."""
         # Arrange
         mock_process = Mock()
-        mock_process.poll.side_effect = [None, None, 0]  # Takes 3 polls to finish
+        # First call returns None (still running), then 0 (finished)
+        # Need to provide enough values for the loop
+        mock_process.poll.side_effect = [None, None, 0] + [0] * 20
         mock_popen.return_value = mock_process
         player = Player()
         player.play("http://localhost:8000/media/test.mp4")
