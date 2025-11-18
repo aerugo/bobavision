@@ -108,6 +108,40 @@ class QueueReorderRequest(BaseModel):
     queue_ids: List[int] = Field(..., min_length=1, description="List of queue item IDs in new order")
 
 
+# Statistics schemas
+class SystemStatsResponse(BaseModel):
+    """Response schema for system-wide statistics."""
+    total_videos: int = Field(..., description="Total number of videos in library")
+    regular_videos: int = Field(..., description="Number of non-placeholder videos")
+    placeholder_videos: int = Field(..., description="Number of placeholder videos")
+    total_clients: int = Field(..., description="Total number of registered clients")
+    total_plays: int = Field(..., description="Total plays across all clients (all time)")
+    plays_today: int = Field(..., description="Total plays today across all clients")
+
+
+class RecentPlayResponse(BaseModel):
+    """Response schema for a recent play in history."""
+    video_id: int
+    video_title: str
+    played_at: datetime
+    is_placeholder: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ClientStatsResponse(BaseModel):
+    """Response schema for per-client statistics."""
+    client_id: str = Field(..., description="Client identifier")
+    friendly_name: str = Field(..., description="Client's friendly name")
+    daily_limit: int = Field(..., description="Daily video limit")
+    plays_today: int = Field(..., description="Number of non-placeholder plays today")
+    plays_remaining: int = Field(..., description="Plays remaining before limit (max 0)")
+    total_plays: int = Field(..., description="Total plays all-time")
+    queue_size: int = Field(..., description="Current number of items in queue")
+    recent_plays: List[RecentPlayResponse] = Field(..., description="Recent play history (up to 10)")
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Kids Media Station API",
@@ -681,6 +715,113 @@ def reorder_queue(
     queue_repo.reorder(client_id, request.queue_ids)
 
     return {"message": "Queue reordered"}
+
+
+# Statistics endpoints
+@app.get("/api/stats", response_model=SystemStatsResponse)
+def get_system_stats(db: Session = Depends(get_db)):
+    """Get system-wide statistics.
+
+    Returns:
+        SystemStatsResponse with overall system metrics
+    """
+    video_repo = VideoRepository(db)
+    client_repo = ClientRepository(db)
+
+    # Count videos
+    all_videos = video_repo.get_all()
+    regular_videos = [v for v in all_videos if not v.is_placeholder]
+    placeholder_videos = [v for v in all_videos if v.is_placeholder]
+
+    # Count clients
+    all_clients = client_repo.get_all()
+
+    # Count plays
+    from src.db.models import PlayLog
+    total_plays = db.query(PlayLog).count()
+
+    # Count today's plays
+    from datetime import datetime, time
+    today = date.today()
+    start_of_day = datetime.combine(today, time.min)
+    end_of_day = datetime.combine(today, time.max)
+
+    plays_today = db.query(PlayLog).filter(
+        PlayLog.played_at >= start_of_day,
+        PlayLog.played_at <= end_of_day
+    ).count()
+
+    return SystemStatsResponse(
+        total_videos=len(all_videos),
+        regular_videos=len(regular_videos),
+        placeholder_videos=len(placeholder_videos),
+        total_clients=len(all_clients),
+        total_plays=total_plays,
+        plays_today=plays_today
+    )
+
+
+@app.get("/api/stats/client/{client_id}", response_model=ClientStatsResponse)
+def get_client_stats(client_id: str, db: Session = Depends(get_db)):
+    """Get statistics for a specific client.
+
+    Args:
+        client_id: Client identifier
+
+    Returns:
+        ClientStatsResponse with client-specific metrics
+
+    Raises:
+        HTTPException: 404 if client not found
+    """
+    client_repo = ClientRepository(db)
+    play_log_repo = PlayLogRepository(db)
+    queue_repo = QueueRepository(db)
+
+    # Get client
+    client = client_repo.get_by_id(client_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail=f"Client {client_id} not found")
+
+    # Get play counts
+    today = date.today()
+    plays_today = play_log_repo.count_non_placeholder_plays_today(client_id, today)
+    plays_remaining = max(0, client.daily_limit - plays_today)
+
+    # Get total plays (all time)
+    from src.db.models import PlayLog
+    total_plays = db.query(PlayLog).filter(
+        PlayLog.client_id == client_id,
+        PlayLog.is_placeholder == False
+    ).count()
+
+    # Get queue size
+    queue_size = queue_repo.count(client_id)
+
+    # Get recent plays
+    recent_plays_data = play_log_repo.get_recent_plays(client_id, limit=10)
+
+    # Convert to response format
+    recent_plays = [
+        RecentPlayResponse(
+            video_id=play.video_id,
+            video_title=play.video.title,
+            played_at=play.played_at,
+            is_placeholder=play.is_placeholder
+        )
+        for play in recent_plays_data
+    ]
+
+    return ClientStatsResponse(
+        client_id=client.client_id,
+        friendly_name=client.friendly_name,
+        daily_limit=client.daily_limit,
+        plays_today=plays_today,
+        plays_remaining=plays_remaining,
+        total_plays=total_plays,
+        queue_size=queue_size,
+        recent_plays=recent_plays
+    )
 
 
 # Mount static files for media serving
