@@ -46,16 +46,20 @@ This system allows children to watch videos with one button press while parents 
 ### Prerequisites
 
 - Python 3.11+
-- Node.js 18+ and npm (for admin UI)
-- Raspberry Pi OS (for client)
+- [UV](https://astral.sh/uv) - Fast Python package manager (for server & client)
+- [Bun](https://bun.sh) - Fast JavaScript runtime (for admin UI)
+- Raspberry Pi OS (for client hardware)
 
 ### Server Setup
 
 ```bash
 cd server
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+
+# Install dependencies with UV
+uv sync
+
+# Activate virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Run tests
 pytest
@@ -68,9 +72,12 @@ uvicorn src.main:app --reload --port 8000
 
 ```bash
 cd client
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+
+# Install dependencies with UV
+uv sync
+
+# Activate virtual environment
+source .venv/bin/activate
 
 # Run tests
 pytest
@@ -83,13 +90,15 @@ python src/main.py
 
 ```bash
 cd admin
-npm install
+
+# Install dependencies with Bun
+bun install
 
 # Run tests
-npm test
+bun test
 
 # Start development server
-npm run dev
+bun run dev
 ```
 
 ## Development
@@ -129,7 +138,7 @@ cd server && pytest --cov=src
 cd client && pytest --cov=src
 
 # Admin tests
-cd admin && npm test
+cd admin && bun test
 ```
 
 ### Commit Convention
@@ -174,6 +183,7 @@ See [docs/hardware_setup.md](docs/hardware_setup.md) (Phase 4) for detailed asse
 - **Client**: Python, gpiozero, mpv
 - **Frontend**: React, TypeScript, Vite, Tailwind CSS
 - **Testing**: pytest, Vitest, React Testing Library
+- **Package Management**: UV (Python), Bun (JavaScript)
 
 ## License
 

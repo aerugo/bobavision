@@ -183,7 +183,7 @@ describe('VideoCard', () => {
 })
 ```
 
-Run: `npm test`
+Run: `bun test`
 Expected: **FAIL** (component doesn't exist)
 
 Commit: `[PHASE-3] test: add test for VideoCard component`
@@ -220,7 +220,7 @@ export function VideoCard({ video }: VideoCardProps) {
 }
 ```
 
-Run: `npm test`
+Run: `bun test`
 Expected: **PASS**
 
 Commit: `[PHASE-3] feat: implement basic VideoCard component`
@@ -287,7 +287,7 @@ export function VideoCard({ video, onQueue }: VideoCardProps) {
 }
 ```
 
-Run: `npm test`
+Run: `bun test`
 Expected: **STILL PASS**
 
 Commit: `[PHASE-3] refactor: add styling to VideoCard`
@@ -559,24 +559,24 @@ export function Card({ children, className = '' }: CardProps) {
 - [ ] Dependencies installed (React, Tailwind, Vitest, etc.)
 - [ ] Tailwind configured
 - [ ] Test framework working
-- [ ] Can run `npm run dev` and see app
-- [ ] Can run `npm test` and see tests pass
+- [ ] Can run `bun run dev` and see app
+- [ ] Can run `bun test` and see tests pass
 
 **Initial Setup Commands**:
 
 ```bash
-# Create project
-npm create vite@latest . -- --template react-ts
+# Install Bun (if not already installed)
+curl -fsSL https://bun.sh/install | bash
 
 # Install dependencies
-npm install
+bun install
 
-# Install Tailwind
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
+# Install Tailwind (if needed)
+bun add -D tailwindcss postcss autoprefixer
+bunx tailwindcss init -p
 
-# Install testing libraries
-npm install -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom @vitest/ui
+# Install testing libraries (if needed)
+bun add -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom @vitest/ui
 ```
 
 **Tailwind Configuration**:
@@ -718,7 +718,7 @@ export function MyComponent({ title }: MyComponentProps) {
 }
 ```
 
-3. **Run test**: `npm test`
+3. **Run test**: `bun test`
 
 ### Creating a Custom Hook
 
@@ -758,8 +758,8 @@ export function useVideos() {
 ### Adding Routing
 
 ```bash
-# Install React Router
-npm install react-router-dom
+# Install React Router with Bun
+bun add react-router-dom
 ```
 
 ```typescript
@@ -1092,8 +1092,8 @@ export const VideoCard = memo(VideoCardComponent)
 ```bash
 # Clear build cache
 rm -rf dist node_modules
-npm install
-npm run build
+bun install
+bun run build
 ```
 
 ### Type Errors
@@ -1113,13 +1113,13 @@ interface ApiResponse {
 
 ```bash
 # Run tests in watch mode to debug
-npm run test:watch
+bun run test:watch
 
 # Run single test file
-npm test -- VideoCard.test.tsx
+bun test -- VideoCard.test.tsx
 
 # View test UI
-npm run test:ui
+bun run test:ui
 ```
 
 ---
