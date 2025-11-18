@@ -2,13 +2,14 @@
 
 Phase 2: Updated with database integration and daily limits.
 """
+from contextlib import asynccontextmanager
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, Query, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 
 from src.db.database import get_db, init_db
@@ -27,15 +28,14 @@ class NextVideoResponse(BaseModel):
 # Client management schemas
 class ClientResponse(BaseModel):
     """Response schema for client data."""
+    model_config = ConfigDict(from_attributes=True)
+
     client_id: str
     friendly_name: str
     daily_limit: int
     tag_filters: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ClientCreate(BaseModel):
@@ -56,6 +56,8 @@ class ClientUpdate(BaseModel):
 # Video management schemas
 class VideoResponse(BaseModel):
     """Response schema for video data."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     path: str
     title: str
@@ -63,9 +65,6 @@ class VideoResponse(BaseModel):
     is_placeholder: bool
     duration_seconds: Optional[int] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ScanResponse(BaseModel):
@@ -78,14 +77,13 @@ class ScanResponse(BaseModel):
 # Queue management schemas
 class QueueItemResponse(BaseModel):
     """Response schema for queue item."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     video_id: int
     position: int
     created_at: datetime
     video: VideoResponse  # Nested video details
-
-    class Config:
-        from_attributes = True
 
 
 class QueueAddRequest(BaseModel):
@@ -122,13 +120,12 @@ class SystemStatsResponse(BaseModel):
 
 class RecentPlayResponse(BaseModel):
     """Response schema for a recent play in history."""
+    model_config = ConfigDict(from_attributes=True)
+
     video_id: int
     video_title: str
     played_at: datetime
     is_placeholder: bool
-
-    class Config:
-        from_attributes = True
 
 
 class ClientStatsResponse(BaseModel):
@@ -143,11 +140,22 @@ class ClientStatsResponse(BaseModel):
     recent_plays: List[RecentPlayResponse] = Field(..., description="Recent play history (up to 10)")
 
 
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
+    # Startup: Initialize database
+    init_db()
+    yield
+    # Shutdown: cleanup if needed (currently none)
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Kids Media Station API",
     description="API for kids single-button media station",
-    version="0.2.0"
+    version="0.2.0",
+    lifespan=lifespan
 )
 
 # Configure CORS to allow admin UI access
@@ -161,13 +169,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
-
-
-# Initialize database on startup
-@app.on_event("startup")
-def startup_event():
-    """Initialize database tables on application startup."""
-    init_db()
 
 
 # Global media directory (can be set for testing)
