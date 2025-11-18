@@ -131,16 +131,33 @@ def test_api_next_requires_client_id():
     assert response.status_code == 422
 
 
-def test_api_next_returns_valid_json():
-    """Test that /api/next returns valid JSON response."""
-    # Arrange
-    from src.main import app, set_media_directory
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmp:
-        # Create at least one video
-        Path(tmp) / "test.mp4"
-        (Path(tmp) / "test.mp4").write_text("test")
-        set_media_directory(tmp)
+def test_api_next_returns_valid_json(db_session):
+    """Test that /api/next returns valid JSON response.
+
+    Updated for Phase 2: Uses database instead of filesystem.
+    """
+    # Arrange - Set up test database with videos
+    from src.db.repositories import VideoRepository
+    from src.main import app
+    from src.db.database import get_db
+
+    # Populate database with test videos
+    video_repo = VideoRepository(db_session)
+    video_repo.create(path="test.mp4", title="Test Video", is_placeholder=False)
+
+    # Override database dependency
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    # Disable startup init_db
+    import src.db.database
+    original_init_db = src.db.database.init_db
+    src.db.database.init_db = lambda: None
 
     client = TestClient(app)
 
@@ -152,6 +169,10 @@ def test_api_next_returns_valid_json():
     # Should not raise exception
     data = response.json()
     assert isinstance(data, dict)
+
+    # Clean up
+    app.dependency_overrides.clear()
+    src.db.database.init_db = original_init_db
 
 
 def test_api_root_endpoint_exists():
