@@ -672,7 +672,7 @@ Flow:
 **Tasks**:
 
 #### 1. **Web Server Setup**:
-   - Install Flask or use http.server: `pip install flask`
+   - Flask is already included in dependencies (installed via `uv sync`)
    - Create HTTP server serving `/client/ui/` directory
    - Add WebSocket support for real-time state updates
    - Test server serves HTML files correctly
@@ -958,21 +958,25 @@ journalctl -u bobavision.service -f
    sudo apt update
    sudo apt upgrade -y
    ```
-4. **Install dependencies**:
+4. **Install system dependencies**:
    ```bash
-   sudo apt install python3-pip mpv git -y
+   sudo apt install python3 mpv git -y
    ```
-5. **Clone repository**:
+5. **Install UV**:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   source $HOME/.local/bin/env  # Add UV to PATH
+   ```
+6. **Clone repository**:
    ```bash
    cd ~
    git clone <repo-url> bobavision
    cd bobavision/client
    ```
-6. **Install Python packages**:
+7. **Install Python packages with UV**:
    ```bash
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
+   uv sync
+   source .venv/bin/activate
    ```
 
 ### GPIO Button Wiring

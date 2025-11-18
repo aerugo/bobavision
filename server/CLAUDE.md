@@ -728,7 +728,7 @@ Base.metadata.create_all(engine)
 
 For production, consider using Alembic:
 ```bash
-pip install alembic
+uv pip install alembic
 alembic init migrations
 alembic revision --autogenerate -m "Initial migration"
 alembic upgrade head
@@ -839,8 +839,8 @@ async def list_videos(db: Session = Depends(get_db)):
 # Make sure you're in the right directory
 cd server
 
-# Install package in development mode
-pip install -e .
+# Install package in development mode with UV
+uv pip install -e .
 ```
 
 ### Database Errors
