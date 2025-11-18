@@ -1,0 +1,194 @@
+# Kids Single-Button Media Station
+
+A custom media player system for young children featuring single-button interaction, enforced daily screen time limits, and centralized parent control.
+
+## Overview
+
+This system allows children to watch videos with one button press while parents maintain complete control over content and viewing limits through a web interface.
+
+### Key Features
+
+- 🎯 **Single-button interaction** - No menus, no choices, just one button
+- ⏱️ **Daily program limits** - Configurable viewing limits per device
+- 🎬 **Parent-controlled queue** - Parents select content from web UI
+- 🏠 **Local network only** - No internet dependency, complete privacy
+- 🔒 **Safe by design** - Fails gracefully, child-appropriate error handling
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│              Home LAN Network                   │
+│                                                 │
+│  ┌──────────────┐      ┌──────────────┐       │
+│  │ Media Server │◄─────┤  Admin Web   │       │
+│  │  (FastAPI)   │      │  (Browser)   │       │
+│  └──────┬───────┘      └──────────────┘       │
+│         │                                       │
+│         │ HTTP                                  │
+│         │                                       │
+│  ┌──────▼────────┐                             │
+│  │ Client (Pi)   │                             │
+│  │ - Button      │──► GPIO Pin 17              │
+│  │ - mpv Player  │──► HDMI to Screen           │
+│  └───────────────┘                             │
+└─────────────────────────────────────────────────┘
+```
+
+## Components
+
+- **Server**: FastAPI backend serving media and API
+- **Client**: Raspberry Pi with button and screen
+- **Admin UI**: React web interface for parents
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+ and npm (for admin UI)
+- Raspberry Pi OS (for client)
+
+### Server Setup
+
+```bash
+cd server
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Run tests
+pytest
+
+# Start server
+uvicorn src.main:app --reload --port 8000
+```
+
+### Client Setup (Raspberry Pi)
+
+```bash
+cd client
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run tests
+pytest
+
+# Start client
+python src/main.py
+```
+
+### Admin UI Setup
+
+```bash
+cd admin
+npm install
+
+# Run tests
+npm test
+
+# Start development server
+npm run dev
+```
+
+## Development
+
+This project follows strict **Test-Driven Development (TDD)** principles.
+
+### TDD Workflow
+
+1. **🔴 RED**: Write a failing test
+2. **🟢 GREEN**: Write minimal code to pass
+3. **♻️ REFACTOR**: Improve code while keeping tests green
+
+See [docs/tdd_guide.md](docs/tdd_guide.md) for detailed TDD practices.
+
+### Project Structure
+
+```
+bobavision/
+├── CLAUDE.md              # Development guide (start here!)
+├── README.md              # This file
+├── docs/
+│   ├── grand_plan.md      # Complete project plan
+│   └── tdd_guide.md       # TDD principles
+├── server/                # FastAPI backend
+├── client/                # Raspberry Pi client
+├── admin/                 # React admin UI
+└── media/                 # Video files
+```
+
+### Running Tests
+
+```bash
+# Server tests
+cd server && pytest --cov=src
+
+# Client tests
+cd client && pytest --cov=src
+
+# Admin tests
+cd admin && npm test
+```
+
+### Commit Convention
+
+```
+[PHASE-X] <type>: <description>
+
+Types: test, feat, refactor, fix, docs, chore
+```
+
+## Current Status
+
+**Phase**: 0 - Project Setup (Complete)
+**Next**: Phase 1 - Minimal Vertical Slice
+
+See [docs/grand_plan.md](docs/grand_plan.md) for complete roadmap.
+
+## Documentation
+
+- **[CLAUDE.md](CLAUDE.md)** - Main development guide
+- **[docs/grand_plan.md](docs/grand_plan.md)** - Complete project vision and phases
+- **[docs/tdd_guide.md](docs/tdd_guide.md)** - TDD principles and examples
+- **[server/CLAUDE.md](server/CLAUDE.md)** - Backend development guide
+- **[client/CLAUDE.md](client/CLAUDE.md)** - Raspberry Pi client guide
+- **[admin/CLAUDE.md](admin/CLAUDE.md)** - Frontend development guide
+
+## Hardware Requirements
+
+### Raspberry Pi Client
+
+- Raspberry Pi 4 (2-4GB RAM)
+- 7-10" HDMI display
+- Large momentary push button
+- Speaker/soundbar
+- Power supply or USB-C PD powerbank
+
+See [docs/hardware_setup.md](docs/hardware_setup.md) (Phase 4) for detailed assembly.
+
+## Technology Stack
+
+- **Backend**: Python, FastAPI, SQLAlchemy, SQLite
+- **Client**: Python, gpiozero, mpv
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS
+- **Testing**: pytest, Vitest, React Testing Library
+
+## License
+
+Private project - All rights reserved
+
+## Development
+
+For development instructions, see [CLAUDE.md](CLAUDE.md).
+
+To get started:
+1. Read [docs/grand_plan.md](docs/grand_plan.md)
+2. Follow the current phase tasks
+3. Use strict TDD for all features
+4. Update progress in grand_plan.md
+
+---
+
+**Built with ❤️ for kids who need healthy screen time boundaries**
