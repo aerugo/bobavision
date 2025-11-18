@@ -1,8 +1,6 @@
 # Docker Compose configuration for bobavision Kids Media Station
 # ADR-007: Server Containerization for easy deployment
 
-version: '3.8'
-
 services:
   # FastAPI server with mpv
   server:

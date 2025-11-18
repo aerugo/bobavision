@@ -49,7 +49,7 @@ RUN mkdir -p /app/data /app/media/library
 # Environment variables
 ENV PYTHONPATH=/app/server \
     PYTHONUNBUFFERED=1 \
-    DATABASE_URL=/app/data/bobavision.db \
+    DATABASE_URL=sqlite:////app/data/bobavision.db \
     MEDIA_DIRECTORY=/app/media/library
 
 # Expose port
