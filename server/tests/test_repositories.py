@@ -32,10 +32,9 @@ def sample_videos(db_session):
     from src.db.models import Video
 
     videos = [
-        Video(path="cartoon/video1.mp4", title="Fun Cartoon 1", is_placeholder=False),
-        Video(path="cartoon/video2.mp4", title="Fun Cartoon 2", is_placeholder=False),
-        Video(path="educational/video3.mp4", title="Learning Time", is_placeholder=False),
-        Video(path="placeholders/all_done.mp4", title="All Done for Today", is_placeholder=True),
+        Video(path="cartoon/video1.mp4", title="Fun Cartoon 1"),
+        Video(path="cartoon/video2.mp4", title="Fun Cartoon 2"),
+        Video(path="educational/video3.mp4", title="Learning Time"),
     ]
 
     for video in videos:
@@ -61,7 +60,7 @@ def test_video_repository_get_all(db_session, sample_videos):
     videos = repo.get_all()
 
     # Assert
-    assert len(videos) == 4
+    assert len(videos) == 3
     assert all(hasattr(v, 'title') for v in videos)
 
 
@@ -122,8 +121,7 @@ def test_video_repository_create(db_session):
     video = repo.create(
         path="new/video.mp4",
         title="New Video",
-        tags="kids,fun",
-        is_placeholder=False
+        tags="kids,fun"
     )
 
     # Assert
@@ -133,69 +131,22 @@ def test_video_repository_create(db_session):
     assert video.tags == "kids,fun"
 
 
-def test_video_repository_get_non_placeholders(db_session, sample_videos):
-    """Test getting only non-placeholder videos."""
+def test_video_repository_get_random(db_session, sample_videos):
+    """Test getting a random video."""
     from src.db.repositories import VideoRepository
 
     # Arrange
     repo = VideoRepository(db_session)
 
     # Act
-    videos = repo.get_non_placeholders()
-
-    # Assert
-    assert len(videos) == 3  # Should exclude the placeholder
-    assert all(not v.is_placeholder for v in videos)
-
-
-def test_video_repository_get_placeholders(db_session, sample_videos):
-    """Test getting only placeholder videos."""
-    from src.db.repositories import VideoRepository
-
-    # Arrange
-    repo = VideoRepository(db_session)
-
-    # Act
-    videos = repo.get_placeholders()
-
-    # Assert
-    assert len(videos) == 1
-    assert all(v.is_placeholder for v in videos)
-    assert videos[0].title == "All Done for Today"
-
-
-def test_video_repository_get_random_non_placeholder(db_session, sample_videos):
-    """Test getting a random non-placeholder video."""
-    from src.db.repositories import VideoRepository
-
-    # Arrange
-    repo = VideoRepository(db_session)
-
-    # Act
-    video = repo.get_random_non_placeholder()
+    video = repo.get_random()
 
     # Assert
     assert video is not None
-    assert video.is_placeholder is False
     assert video.title in ["Fun Cartoon 1", "Fun Cartoon 2", "Learning Time"]
 
 
-def test_video_repository_get_random_placeholder(db_session, sample_videos):
-    """Test getting a random placeholder video."""
-    from src.db.repositories import VideoRepository
-
-    # Arrange
-    repo = VideoRepository(db_session)
-
-    # Act
-    video = repo.get_random_placeholder()
-
-    # Assert
-    assert video is not None
-    assert video.is_placeholder is True
-
-
-def test_video_repository_get_random_non_placeholder_empty(db_session):
+def test_video_repository_get_random_empty(db_session):
     """Test getting random video when none exist returns None."""
     from src.db.repositories import VideoRepository
 
@@ -203,7 +154,7 @@ def test_video_repository_get_random_non_placeholder_empty(db_session):
     repo = VideoRepository(db_session)
 
     # Act
-    video = repo.get_random_non_placeholder()
+    video = repo.get_random()
 
     # Assert
     assert video is None
@@ -337,15 +288,13 @@ def test_playlog_repository_log_play(db_session, sample_videos):
     # Act
     play = repo.log_play(
         client_id="test",
-        video_id=sample_videos[0].id,
-        is_placeholder=False
+        video_id=sample_videos[0].id
     )
 
     # Assert
     assert play.id is not None
     assert play.client_id == "test"
     assert play.video_id == sample_videos[0].id
-    assert play.is_placeholder is False
 
 
 def test_playlog_repository_count_plays_today(db_session, sample_videos):
@@ -363,7 +312,6 @@ def test_playlog_repository_count_plays_today(db_session, sample_videos):
         play = PlayLog(
             client_id="test",
             video_id=sample_videos[i].id,
-            is_placeholder=False,
             played_at=today
         )
         db_session.add(play)
@@ -378,33 +326,6 @@ def test_playlog_repository_count_plays_today(db_session, sample_videos):
     assert count == 3
 
 
-def test_playlog_repository_count_non_placeholder_plays_today(db_session, sample_videos):
-    """Test counting only non-placeholder plays for today."""
-    from src.db.repositories import PlayLogRepository, ClientRepository
-    from src.db.models import PlayLog
-
-    # Arrange
-    client_repo = ClientRepository(db_session)
-    client_repo.create(client_id="test", friendly_name="Test")
-
-    # Create 2 real plays and 1 placeholder
-    today = datetime.utcnow()
-    plays = [
-        PlayLog(client_id="test", video_id=sample_videos[0].id, is_placeholder=False, played_at=today),
-        PlayLog(client_id="test", video_id=sample_videos[1].id, is_placeholder=False, played_at=today),
-        PlayLog(client_id="test", video_id=sample_videos[3].id, is_placeholder=True, played_at=today),
-    ]
-    for play in plays:
-        db_session.add(play)
-    db_session.commit()
-
-    repo = PlayLogRepository(db_session)
-
-    # Act
-    count = repo.count_non_placeholder_plays_today("test", date.today())
-
-    # Assert
-    assert count == 2  # Only non-placeholder plays
 
 
 def test_playlog_repository_excludes_previous_days(db_session, sample_videos):
@@ -421,7 +342,6 @@ def test_playlog_repository_excludes_previous_days(db_session, sample_videos):
     old_play = PlayLog(
         client_id="test",
         video_id=sample_videos[0].id,
-        is_placeholder=False,
         played_at=yesterday
     )
     db_session.add(old_play)
@@ -431,7 +351,6 @@ def test_playlog_repository_excludes_previous_days(db_session, sample_videos):
     new_play = PlayLog(
         client_id="test",
         video_id=sample_videos[1].id,
-        is_placeholder=False,
         played_at=today
     )
     db_session.add(new_play)
@@ -440,7 +359,7 @@ def test_playlog_repository_excludes_previous_days(db_session, sample_videos):
     repo = PlayLogRepository(db_session)
 
     # Act
-    count = repo.count_non_placeholder_plays_today("test", date.today())
+    count = repo.count_plays_today("test", date.today())
 
     # Assert
     assert count == 1  # Only today's play
@@ -459,8 +378,7 @@ def test_playlog_repository_get_recent_plays(db_session, sample_videos):
     for i in range(5):
         play = PlayLog(
             client_id="test",
-            video_id=sample_videos[i % len(sample_videos)].id,
-            is_placeholder=False
+            video_id=sample_videos[i % len(sample_videos)].id
         )
         db_session.add(play)
     db_session.commit()

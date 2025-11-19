@@ -22,8 +22,8 @@ def test_api_next_returns_video_url(db_session):
 
     # Populate database with test videos
     video_repo = VideoRepository(db_session)
-    video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+    video_repo.create(path="video1.mp4", title="Video 1")
+    video_repo.create(path="video2.mp4", title="Video 2")
 
     # Override database dependency
     def override_get_db():
@@ -75,9 +75,9 @@ def test_api_next_returns_different_videos_on_consecutive_calls(db_session):
 
     # Populate database with test videos
     video_repo = VideoRepository(db_session)
-    video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    video_repo.create(path="video1.mp4", title="Video 1")
+    video_repo.create(path="video2.mp4", title="Video 2")
+    video_repo.create(path="video3.mp4", title="Video 3")
 
     # Create client with high limit so we don't hit placeholders
     client_repo = ClientRepository(db_session)
@@ -143,7 +143,7 @@ def test_api_next_returns_valid_json(db_session):
 
     # Populate database with test videos
     video_repo = VideoRepository(db_session)
-    video_repo.create(path="test.mp4", title="Test Video", is_placeholder=False)
+    video_repo.create(path="test.mp4", title="Test Video")
 
     # Override database dependency
     def override_get_db():

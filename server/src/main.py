@@ -75,7 +75,6 @@ class VideoResponse(BaseModel):
     path: str
     title: str
     tags: Optional[str] = None
-    is_placeholder: bool
     duration_seconds: Optional[int] = None
     created_at: datetime
 
@@ -125,8 +124,6 @@ class QueueReorderRequest(BaseModel):
 class SystemStatsResponse(BaseModel):
     """Response schema for system-wide statistics."""
     total_videos: int = Field(..., description="Total number of videos in library")
-    regular_videos: int = Field(..., description="Number of non-placeholder videos")
-    placeholder_videos: int = Field(..., description="Number of placeholder videos")
     total_clients: int = Field(..., description="Total number of registered clients")
     total_plays: int = Field(..., description="Total plays across all clients (all time)")
     plays_today: int = Field(..., description="Total plays today across all clients")
@@ -139,7 +136,6 @@ class RecentPlayResponse(BaseModel):
     video_id: int
     video_title: str
     played_at: datetime
-    is_placeholder: bool
 
 
 class ClientStatsResponse(BaseModel):
@@ -274,13 +270,10 @@ def get_next_video(
             # Remove from queue and serve
             queue_repo.remove(queue_item.id)
 
-            is_placeholder = video.is_placeholder
-
             # Log the play (non-blocking - video will be served even if logging fails)
             play_log_repo.log_play_safe(
                 client_id=client_id,
-                video_id=video.id,
-                is_placeholder=is_placeholder
+                video_id=video.id
             )
 
             # Build URL path
@@ -289,7 +282,7 @@ def get_next_video(
             return NextVideoResponse(
                 url=url,
                 title=video.title,
-                placeholder=is_placeholder
+                placeholder=False
             )
 
     # Queue is empty - use limit-based logic
@@ -299,19 +292,15 @@ def get_next_video(
 
     # Select video based on limit status
     if limit_reached:
-        # Limit reached - return placeholder
-        video = video_repo.get_random_placeholder()
-
-        if video is None:
-            # No placeholder videos available - return HTML animation
-            return NextVideoResponse(
-                url="/static/limit_reached.html",
-                title="All Done for Today!",
-                placeholder=True
-            )
+        # Limit reached - return shader animation
+        return NextVideoResponse(
+            url="/static/limit_reached.html",
+            title="All Done for Today!",
+            placeholder=True
+        )
     else:
-        # Under limit - return real video
-        video = video_repo.get_random_non_placeholder()
+        # Under limit - return random video
+        video = video_repo.get_random()
 
         if video is None:
             # No videos available - return error message
@@ -321,25 +310,20 @@ def get_next_video(
                 placeholder=True
             )
 
-    # Use the video's actual is_placeholder field (not a hardcoded value)
-    # This ensures consistency with queue path and correct limit enforcement
-    is_placeholder = video.is_placeholder
+        # Log the play (non-blocking - video will be served even if logging fails)
+        play_log_repo.log_play_safe(
+            client_id=client_id,
+            video_id=video.id
+        )
 
-    # Log the play (non-blocking - video will be served even if logging fails)
-    play_log_repo.log_play_safe(
-        client_id=client_id,
-        video_id=video.id,
-        is_placeholder=is_placeholder
-    )
+        # Build URL path
+        url = f"/media/library/{video.path}"
 
-    # Build URL path
-    url = f"/media/library/{video.path}"
-
-    return NextVideoResponse(
-        url=url,
-        title=video.title,
-        placeholder=is_placeholder
-    )
+        return NextVideoResponse(
+            url=url,
+            title=video.title,
+            placeholder=False
+        )
 
 
 # Client management endpoints
@@ -506,14 +490,12 @@ def add_bonus_plays(
 # Video management endpoints
 @app.get("/api/videos", response_model=List[VideoResponse])
 def get_videos(
-    is_placeholder: Optional[bool] = Query(None, description="Filter by placeholder status"),
     tags: Optional[str] = Query(None, description="Filter by tags"),
     db: Session = Depends(get_db)
 ):
     """Get all videos from database.
 
     Args:
-        is_placeholder: Optional filter for placeholder status
         tags: Optional filter for videos with specific tags
         db: Database session
 
@@ -526,9 +508,6 @@ def get_videos(
     videos = video_repo.get_all()
 
     # Apply filters if provided
-    if is_placeholder is not None:
-        videos = [v for v in videos if v.is_placeholder == is_placeholder]
-
     if tags is not None:
         videos = [v for v in videos if v.tags and tags in v.tags]
 
@@ -583,15 +562,11 @@ def scan_videos(db: Session = Depends(get_db)):
         # Extract tags from directory
         tags = _extract_tags_from_path(video_path)
 
-        # Determine if placeholder
-        is_placeholder = "placeholder" in video_path.lower()
-
         # Create video record
         video_repo.create(
             path=video_path,
             title=title,
-            tags=tags,
-            is_placeholder=is_placeholder
+            tags=tags
         )
         added += 1
 
@@ -834,8 +809,6 @@ def get_system_stats(db: Session = Depends(get_db)):
 
     # Count videos
     all_videos = video_repo.get_all()
-    regular_videos = [v for v in all_videos if not v.is_placeholder]
-    placeholder_videos = [v for v in all_videos if v.is_placeholder]
 
     # Count clients
     all_clients = client_repo.get_all()
@@ -857,8 +830,6 @@ def get_system_stats(db: Session = Depends(get_db)):
 
     return SystemStatsResponse(
         total_videos=len(all_videos),
-        regular_videos=len(regular_videos),
-        placeholder_videos=len(placeholder_videos),
         total_clients=len(all_clients),
         total_plays=total_plays,
         plays_today=plays_today
@@ -889,14 +860,13 @@ def get_client_stats(client_id: str, db: Session = Depends(get_db)):
 
     # Get play counts
     today = date.today()
-    plays_today = play_log_repo.count_non_placeholder_plays_today(client_id, today)
+    plays_today = play_log_repo.count_plays_today(client_id, today)
     plays_remaining = max(0, client.daily_limit - plays_today)
 
     # Get total plays (all time)
     from src.db.models import PlayLog
     total_plays = db.query(PlayLog).filter(
-        PlayLog.client_id == client_id,
-        PlayLog.is_placeholder == False
+        PlayLog.client_id == client_id
     ).count()
 
     # Get queue size
@@ -910,8 +880,7 @@ def get_client_stats(client_id: str, db: Session = Depends(get_db)):
         RecentPlayResponse(
             video_id=play.video_id,
             video_title=play.video.title,
-            played_at=play.played_at,
-            is_placeholder=play.is_placeholder
+            played_at=play.played_at
         )
         for play in recent_plays_data
     ]

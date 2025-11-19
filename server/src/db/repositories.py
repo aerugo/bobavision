@@ -64,7 +64,6 @@ class VideoRepository:
         path: str,
         title: str,
         tags: Optional[str] = None,
-        is_placeholder: bool = False,
         duration_seconds: Optional[int] = None
     ) -> Video:
         """Create a new video.
@@ -73,7 +72,6 @@ class VideoRepository:
             path: Video file path
             title: Video title
             tags: Comma-separated tags
-            is_placeholder: Whether this is a placeholder video
             duration_seconds: Video duration in seconds
 
         Returns:
@@ -83,7 +81,6 @@ class VideoRepository:
             path=path,
             title=title,
             tags=tags,
-            is_placeholder=is_placeholder,
             duration_seconds=duration_seconds
         )
         self.db.add(video)
@@ -108,40 +105,13 @@ class VideoRepository:
         self.db.commit()
         return True
 
-    def get_non_placeholders(self) -> List[Video]:
-        """Get all non-placeholder videos.
+    def get_random(self) -> Optional[Video]:
+        """Get a random video.
 
         Returns:
-            List of non-placeholder Video objects
+            Random Video object or None if none exist
         """
-        return self.db.query(Video).filter(Video.is_placeholder == False).all()
-
-    def get_placeholders(self) -> List[Video]:
-        """Get all placeholder videos.
-
-        Returns:
-            List of placeholder Video objects
-        """
-        return self.db.query(Video).filter(Video.is_placeholder == True).all()
-
-    def get_random_non_placeholder(self) -> Optional[Video]:
-        """Get a random non-placeholder video.
-
-        Returns:
-            Random non-placeholder Video object or None if none exist
-        """
-        videos = self.get_non_placeholders()
-        if not videos:
-            return None
-        return random.choice(videos)
-
-    def get_random_placeholder(self) -> Optional[Video]:
-        """Get a random placeholder video.
-
-        Returns:
-            Random placeholder Video object or None if none exist
-        """
-        videos = self.get_placeholders()
+        videos = self.get_all()
         if not videos:
             return None
         return random.choice(videos)
@@ -319,7 +289,6 @@ class PlayLogRepository:
         self,
         client_id: str,
         video_id: int,
-        is_placeholder: bool,
         completed: bool = False
     ) -> PlayLog:
         """Log a video play.
@@ -327,7 +296,6 @@ class PlayLogRepository:
         Args:
             client_id: Client identifier
             video_id: Video ID
-            is_placeholder: Whether the video is a placeholder
             completed: Whether the video was completed
 
         Returns:
@@ -336,7 +304,6 @@ class PlayLogRepository:
         play = PlayLog(
             client_id=client_id,
             video_id=video_id,
-            is_placeholder=is_placeholder,
             completed=completed
         )
         self.db.add(play)
@@ -348,7 +315,6 @@ class PlayLogRepository:
         self,
         client_id: str,
         video_id: int,
-        is_placeholder: bool,
         completed: bool = False,
         max_retries: int = 3
     ) -> Optional[PlayLog]:
@@ -361,7 +327,6 @@ class PlayLogRepository:
         Args:
             client_id: Client identifier
             video_id: Video ID
-            is_placeholder: Whether the video is a placeholder
             completed: Whether the video was completed
             max_retries: Maximum number of retry attempts (default: 3)
 
@@ -376,7 +341,6 @@ class PlayLogRepository:
                 play = self.log_play(
                     client_id=client_id,
                     video_id=video_id,
-                    is_placeholder=is_placeholder,
                     completed=completed
                 )
 
@@ -453,25 +417,6 @@ class PlayLogRepository:
             PlayLog.played_at <= end_of_day
         ).count()
 
-    def count_non_placeholder_plays_today(self, client_id: str, today: date) -> int:
-        """Count non-placeholder plays for a client today.
-
-        Args:
-            client_id: Client identifier
-            today: Date to count plays for
-
-        Returns:
-            Number of non-placeholder plays today
-        """
-        start_of_day = datetime.combine(today, time.min)
-        end_of_day = datetime.combine(today, time.max)
-
-        return self.db.query(PlayLog).filter(
-            PlayLog.client_id == client_id,
-            PlayLog.is_placeholder == False,
-            PlayLog.played_at >= start_of_day,
-            PlayLog.played_at <= end_of_day
-        ).count()
 
     def get_recent_plays(self, client_id: str, limit: int = 10) -> List[PlayLog]:
         """Get recent plays for a client.

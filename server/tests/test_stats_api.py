@@ -48,10 +48,9 @@ def sample_data(db_session):
 
     # Create videos
     videos = [
-        video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False),
-        video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False),
-        video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False),
-        video_repo.create(path="placeholder.mp4", title="All Done", is_placeholder=True),
+        video_repo.create(path="video1.mp4", title="Video 1"),
+        video_repo.create(path="video2.mp4", title="Video 2"),
+        video_repo.create(path="video3.mp4", title="Video 3"),
     ]
 
     # Create clients
@@ -59,9 +58,9 @@ def sample_data(db_session):
     client2 = client_repo.create(client_id="client2", friendly_name="Client 2", daily_limit=5)
 
     # Log some plays for today
-    play_repo.log_play("client1", videos[0].id, is_placeholder=False)
-    play_repo.log_play("client1", videos[1].id, is_placeholder=False)
-    play_repo.log_play("client2", videos[0].id, is_placeholder=False)
+    play_repo.log_play("client1", videos[0].id)
+    play_repo.log_play("client1", videos[1].id)
+    play_repo.log_play("client2", videos[0].id)
 
     return {
         "videos": videos,
@@ -89,25 +88,12 @@ def test_get_stats_returns_system_statistics(client_with_db, sample_data):
     assert "plays_today" in data
 
     # Check values
-    assert data["total_videos"] == 4  # 3 regular + 1 placeholder
+    assert data["total_videos"] == 3
     assert data["total_clients"] == 2
     assert data["total_plays"] >= 3  # At least 3 from sample_data
     assert data["plays_today"] >= 3
 
 
-def test_get_stats_counts_only_real_videos(client_with_db, sample_data):
-    """Test that stats can distinguish between regular and placeholder videos."""
-    # Act
-    response = client_with_db.get("/api/stats")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-
-    assert "regular_videos" in data
-    assert "placeholder_videos" in data
-    assert data["regular_videos"] == 3
-    assert data["placeholder_videos"] == 1
 
 
 def test_get_stats_with_no_data(client_with_db):
@@ -177,7 +163,6 @@ def test_get_client_stats_includes_recent_plays(client_with_db, sample_data):
     assert "video_id" in play
     assert "video_title" in play
     assert "played_at" in play
-    assert "is_placeholder" in play
 
 
 def test_get_client_stats_shows_zero_remaining_when_at_limit(client_with_db, db_session, sample_data):
@@ -188,7 +173,7 @@ def test_get_client_stats_shows_zero_remaining_when_at_limit(client_with_db, db_
     videos = sample_data["videos"]
 
     # Add one more play to reach limit (client1 has limit=3, already has 2 plays)
-    play_repo.log_play("client1", videos[2].id, is_placeholder=False)
+    play_repo.log_play("client1", videos[2].id)
 
     # Act
     response = client_with_db.get("/api/stats/client/client1")
@@ -210,27 +195,6 @@ def test_get_client_stats_returns_404_for_nonexistent_client(client_with_db):
     assert response.status_code == 404
 
 
-def test_get_client_stats_counts_only_non_placeholder_plays(client_with_db, db_session, sample_data):
-    """Test that placeholder plays don't count toward plays_today."""
-    from src.db.repositories import PlayLogRepository
-
-    play_repo = PlayLogRepository(db_session)
-    videos = sample_data["videos"]
-
-    # Add placeholder plays
-    play_repo.log_play("client1", videos[3].id, is_placeholder=True)
-    play_repo.log_play("client1", videos[3].id, is_placeholder=True)
-
-    # Act
-    response = client_with_db.get("/api/stats/client/client1")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-
-    # Should still be 2 (placeholders don't count)
-    assert data["plays_today"] == 2
-    assert data["plays_remaining"] == 1
 
 
 def test_get_client_stats_includes_queue_size(client_with_db, db_session, sample_data):
@@ -264,7 +228,7 @@ def test_get_client_stats_limits_recent_plays_to_10(client_with_db, db_session, 
 
     # Add 15 more plays (total 17 with existing 2)
     for _ in range(15):
-        play_repo.log_play("client1", videos[0].id, is_placeholder=False)
+        play_repo.log_play("client1", videos[0].id)
 
     # Act
     response = client_with_db.get("/api/stats/client/client1")
@@ -285,7 +249,7 @@ def test_get_client_stats_recent_plays_ordered_by_time_descending(client_with_db
     videos = sample_data["videos"]
 
     # Add more plays
-    play_repo.log_play("client1", videos[2].id, is_placeholder=False)
+    play_repo.log_play("client1", videos[2].id)
 
     # Act
     response = client_with_db.get("/api/stats/client/client1")
@@ -313,14 +277,13 @@ def test_get_stats_only_counts_todays_plays(client_with_db, db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    video = video_repo.create(path="test.mp4", title="Test", is_placeholder=False)
+    video = video_repo.create(path="test.mp4", title="Test")
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
     # Add play from yesterday (manual creation to control timestamp)
     yesterday_play = PlayLog(
         client_id="test",
         video_id=video.id,
-        is_placeholder=False,
         played_at=datetime.now() - timedelta(days=1)
     )
     db_session.add(yesterday_play)
@@ -328,7 +291,7 @@ def test_get_stats_only_counts_todays_plays(client_with_db, db_session):
 
     # Add play from today
     play_repo = PlayLogRepository(db_session)
-    play_repo.log_play("test", video.id, is_placeholder=False)
+    play_repo.log_play("test", video.id)
 
     # Act
     response = client_with_db.get("/api/stats/client/test")
