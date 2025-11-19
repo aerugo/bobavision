@@ -107,11 +107,12 @@ class ClientApp:
 
         # Clean up browser process if running
         if self.browser_process:
-            try:
-                self.browser_process.terminate()
-                self.browser_process.wait(timeout=2)
-            except Exception as e:
-                logger.warning(f"Error terminating browser process: {e}")
+            if hasattr(self.browser_process, 'terminate'):
+                try:
+                    self.browser_process.terminate()
+                    self.browser_process.wait(timeout=2)
+                except Exception as e:
+                    logger.warning(f"Error terminating browser process: {e}")
             self.browser_process = None
 
         logger.info("ClientApp stopped successfully")
@@ -186,24 +187,62 @@ class ClientApp:
         """
         import subprocess
         import shutil
+        import webbrowser
+        import platform
+        import os
 
-        # Check if chromium-browser is available
+        # Try to find a suitable browser
+        # Priority: chromium (Pi) > chrome (Mac/Linux) > default browser
+        browser_path = None
+        browser_args = []
+
+        # Check for Chromium (Raspberry Pi)
         chromium = shutil.which('chromium-browser') or shutil.which('chromium')
-
         if chromium:
-            logger.info(f"Opening HTML page in Chromium: {url}")
-            # Open in kiosk mode, fullscreen
-            self.browser_process = subprocess.Popen([
-                chromium,
+            browser_path = chromium
+            browser_args = [
                 '--kiosk',
                 '--noerrdialogs',
                 '--disable-infobars',
                 '--no-first-run',
-                url
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        else:
-            logger.warning("Chromium not found, falling back to MPV (may not work properly)")
-            # Fallback: try MPV anyway (will likely fail but at least we try)
+            ]
+            logger.info(f"Found Chromium at: {chromium}")
+
+        # Check for Chrome (Mac/Linux/Windows)
+        elif shutil.which('google-chrome'):
+            browser_path = shutil.which('google-chrome')
+            browser_args = ['--kiosk']
+            logger.info(f"Found Chrome at: {browser_path}")
+
+        # Check for Chrome on Mac (Application bundle)
+        elif platform.system() == 'Darwin':
+            chrome_mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+            if os.path.exists(chrome_mac):
+                browser_path = chrome_mac
+                browser_args = ['--kiosk']
+                logger.info(f"Found Chrome on Mac at: {chrome_mac}")
+
+        if browser_path:
+            logger.info(f"Opening HTML page in browser: {url}")
+            try:
+                self.browser_process = subprocess.Popen(
+                    [browser_path] + browser_args + [url],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                return
+            except Exception as e:
+                logger.warning(f"Failed to launch browser: {e}")
+
+        # Ultimate fallback: use system default browser
+        logger.info(f"Using default browser to open: {url}")
+        try:
+            webbrowser.open(url)
+            # Since we can't track the browser process, just set a flag
+            self.browser_process = True  # Flag to indicate browser was opened
+        except Exception as e:
+            logger.error(f"Failed to open URL in browser: {e}")
+            # Last resort: try MPV (will likely fail but better than nothing)
             self.player.play(url)
 
     def _start_video_monitor(self):
@@ -220,8 +259,17 @@ class ClientApp:
                 # For HTML pages (like limit reached), auto-close after 5 seconds
                 import time
                 time.sleep(5)
-                self.browser_process.terminate()
-                self.browser_process.wait()
+
+                # If browser_process is an actual process, terminate it
+                if hasattr(self.browser_process, 'terminate'):
+                    try:
+                        self.browser_process.terminate()
+                        self.browser_process.wait()
+                    except Exception as e:
+                        logger.warning(f"Error terminating browser: {e}")
+                # Otherwise it's just a flag (webbrowser.open case)
+                # and we can't close it programmatically
+
                 self.browser_process = None
             else:
                 # Monitor MPV video playback
