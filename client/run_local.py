@@ -3,7 +3,7 @@
 Local test runner for the BobaVision client.
 
 This script runs the client with keyboard support for testing without GPIO hardware.
-Press SPACE to simulate button presses.
+Press § to simulate button presses.
 """
 import logging
 import os
@@ -37,7 +37,7 @@ class KeyboardButtonSimulator:
     """
     Simulates GPIO button presses using keyboard input.
 
-    Listens for SPACE key presses and triggers the callback.
+    Listens for § key presses and triggers the callback.
     """
 
     def __init__(self, callback):
@@ -45,11 +45,11 @@ class KeyboardButtonSimulator:
         Initialize the keyboard simulator.
 
         Args:
-            callback: Function to call when SPACE is pressed
+            callback: Function to call when § is pressed
         """
         self.callback = callback
         self.listener: Optional[keyboard.Listener] = None
-        logger.info("Keyboard button simulator initialized (press SPACE to simulate button)")
+        logger.info("Keyboard button simulator initialized (press § to simulate button)")
 
     def start(self):
         """Start listening for keyboard input."""
@@ -71,9 +71,9 @@ class KeyboardButtonSimulator:
             key: The key that was pressed
         """
         try:
-            # Check if SPACE was pressed
-            if key == keyboard.Key.space:
-                logger.info("SPACE pressed - triggering button callback")
+            # Check if § was pressed
+            if hasattr(key, 'char') and key.char == '§':
+                logger.info("§ pressed - triggering button callback")
                 self.callback()
         except Exception as e:
             logger.error(f"Error in keyboard handler: {e}", exc_info=True)
@@ -109,7 +109,7 @@ class LocalClientApp(ClientApp):
         """Start the client app and keyboard listener."""
         super().start()
         self.keyboard_simulator.start()
-        logger.info("Press SPACE to simulate button presses")
+        logger.info("Press § to simulate button presses")
 
     def stop(self):
         """Stop the client app and keyboard listener."""
@@ -144,7 +144,7 @@ def main():
     print(f"GPIO Pin:      {gpio_pin} (simulated with keyboard)")
     print()
     print("Controls:")
-    print("  SPACE - Simulate button press")
+    print("  § - Simulate button press")
     print("  Ctrl+C - Quit")
     print("=" * 70)
     print()
