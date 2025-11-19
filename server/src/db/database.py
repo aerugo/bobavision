@@ -3,7 +3,7 @@
 GREEN phase: Implement database connection to pass tests.
 """
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from src.db.models import Base
@@ -28,6 +28,15 @@ engine = create_engine(
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
     echo=False  # Set to True for SQL query debugging
 )
+
+# Enable foreign key constraints for SQLite
+# This is necessary for CASCADE deletes to work
+if "sqlite" in DATABASE_URL:
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

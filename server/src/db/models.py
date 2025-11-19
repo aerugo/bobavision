@@ -64,8 +64,8 @@ class PlayLog(Base):
     )
     video_id = Column(
         Integer,
-        ForeignKey("videos.id"),
-        nullable=False
+        ForeignKey("videos.id", ondelete="SET NULL"),
+        nullable=True  # Allow NULL to preserve logs when video is deleted
     )
     played_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     is_placeholder = Column(Boolean, nullable=False)
@@ -92,7 +92,7 @@ class Queue(Base):
     )
     video_id = Column(
         Integer,
-        ForeignKey("videos.id"),
+        ForeignKey("videos.id", ondelete="CASCADE"),
         nullable=False
     )
     position = Column(Integer, nullable=False)

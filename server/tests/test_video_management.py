@@ -387,3 +387,215 @@ def test_scan_videos_handles_nonexistent_directory(client_with_db, tmp_path, mon
     if response.status_code == 200:
         data = response.json()
         assert data["total_found"] == 0
+
+
+# Tests for removing videos that are no longer in library folder
+def test_scan_videos_removes_videos_not_in_library(client_with_db, db_session, media_directory_with_files, monkeypatch):
+    """Test that scanning removes videos from DB that are no longer in library folder.
+
+    RED phase: This functionality doesn't exist yet.
+    """
+    # Arrange
+    from src import main
+    from src.db.repositories import VideoRepository
+
+    monkeypatch.setattr(main, "MEDIA_DIRECTORY", str(media_directory_with_files))
+
+    video_repo = VideoRepository(db_session)
+
+    # Add a video to DB that doesn't exist in filesystem
+    deleted_video = video_repo.create(
+        path="deleted/video.mp4",
+        title="Deleted Video",
+        is_placeholder=False,
+        tags="deleted"
+    )
+
+    # Also add a video that does exist
+    video_repo.create(
+        path="cartoons/peppa.mp4",
+        title="Peppa",
+        is_placeholder=False,
+        tags="cartoons"
+    )
+
+    # Verify we have 2 videos before scan
+    assert len(video_repo.get_all()) == 2
+
+    # Act - Scan should remove the deleted video
+    response = client_with_db.post("/api/videos/scan")
+
+    # Assert
+    assert response.status_code == 200
+
+    # The deleted video should be removed
+    videos = video_repo.get_all()
+    video_paths = [v.path for v in videos]
+
+    assert "deleted/video.mp4" not in video_paths
+    assert "cartoons/peppa.mp4" in video_paths
+
+
+def test_scan_videos_returns_removed_count(client_with_db, db_session, media_directory_with_files, monkeypatch):
+    """Test that scan response includes count of removed videos.
+
+    RED phase: Response schema doesn't include 'removed' field yet.
+    """
+    # Arrange
+    from src import main
+    from src.db.repositories import VideoRepository
+
+    monkeypatch.setattr(main, "MEDIA_DIRECTORY", str(media_directory_with_files))
+
+    video_repo = VideoRepository(db_session)
+
+    # Add multiple videos that don't exist in filesystem
+    video_repo.create(path="deleted1.mp4", title="Deleted 1", is_placeholder=False)
+    video_repo.create(path="deleted2.mp4", title="Deleted 2", is_placeholder=False)
+    video_repo.create(path="deleted3.mp4", title="Deleted 3", is_placeholder=False)
+
+    # Act
+    response = client_with_db.post("/api/videos/scan")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "removed" in data
+    assert data["removed"] == 3
+
+
+def test_scan_videos_removes_queue_items_for_deleted_videos(client_with_db, db_session, media_directory_with_files, monkeypatch):
+    """Test that queue items are removed when their video is deleted from library.
+
+    RED phase: Queue items for deleted videos are not removed yet.
+    """
+    # Arrange
+    from src import main
+    from src.db.repositories import VideoRepository, QueueRepository, ClientRepository
+
+    monkeypatch.setattr(main, "MEDIA_DIRECTORY", str(media_directory_with_files))
+
+    video_repo = VideoRepository(db_session)
+    queue_repo = QueueRepository(db_session)
+    client_repo = ClientRepository(db_session)
+
+    # Create a client
+    client = client_repo.create(client_id="test-client", friendly_name="Test Client")
+
+    # Add a video that doesn't exist in filesystem
+    deleted_video = video_repo.create(
+        path="deleted/video.mp4",
+        title="Deleted Video",
+        is_placeholder=False
+    )
+
+    # Add this video to the queue
+    queue_item = queue_repo.add(client_id=client.client_id, video_id=deleted_video.id)
+
+    # Verify queue has the item
+    assert queue_repo.count(client.client_id) == 1
+
+    # Act - Scan should remove the video and its queue items
+    response = client_with_db.post("/api/videos/scan")
+
+    # Assert
+    assert response.status_code == 200
+
+    # The queue should now be empty
+    assert queue_repo.count(client.client_id) == 0
+
+
+def test_scan_videos_preserves_play_logs_for_deleted_videos(client_with_db, db_session, media_directory_with_files, monkeypatch):
+    """Test that play logs are preserved even when video is deleted from library.
+
+    This is important for historical statistics.
+
+    RED phase: Play logs might be deleted due to cascade, need to verify they're preserved.
+    """
+    # Arrange
+    from src import main
+    from src.db.repositories import VideoRepository, PlayLogRepository, ClientRepository
+
+    monkeypatch.setattr(main, "MEDIA_DIRECTORY", str(media_directory_with_files))
+
+    video_repo = VideoRepository(db_session)
+    play_log_repo = PlayLogRepository(db_session)
+    client_repo = ClientRepository(db_session)
+
+    # Create a client
+    client = client_repo.create(client_id="test-client", friendly_name="Test Client")
+
+    # Add a video that doesn't exist in filesystem
+    deleted_video = video_repo.create(
+        path="deleted/video.mp4",
+        title="Deleted Video",
+        is_placeholder=False
+    )
+
+    deleted_video_id = deleted_video.id
+
+    # Log a play for this video
+    play_log = play_log_repo.log_play(
+        client_id=client.client_id,
+        video_id=deleted_video_id,
+        is_placeholder=False
+    )
+    play_log_id = play_log.id
+
+    # Verify play log exists
+    from src.db.models import PlayLog
+    play_count_before = db_session.query(PlayLog).filter(
+        PlayLog.id == play_log_id
+    ).count()
+    assert play_count_before == 1
+
+    # Act - Scan should remove the video but preserve play logs
+    response = client_with_db.post("/api/videos/scan")
+
+    # Assert
+    assert response.status_code == 200
+
+    # The video should be removed
+    assert video_repo.get_by_id(deleted_video_id) is None
+
+    # But the play log should still exist (with video_id set to NULL)
+    preserved_play_log = db_session.query(PlayLog).filter(
+        PlayLog.id == play_log_id
+    ).first()
+    assert preserved_play_log is not None
+    assert preserved_play_log.video_id is None  # Foreign key set to NULL
+    assert preserved_play_log.is_placeholder is False  # Other fields preserved
+
+
+def test_scan_videos_handles_all_videos_deleted(client_with_db, db_session, tmp_path, monkeypatch):
+    """Test that scanning handles the case where all videos have been deleted from library."""
+    # Arrange
+    from src import main
+    from src.db.repositories import VideoRepository
+
+    # Create empty media directory
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    monkeypatch.setattr(main, "MEDIA_DIRECTORY", str(empty_dir))
+
+    video_repo = VideoRepository(db_session)
+
+    # Add some videos to DB that don't exist in filesystem
+    video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
+    video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+    video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+
+    assert len(video_repo.get_all()) == 3
+
+    # Act - Scan empty directory should remove all videos
+    response = client_with_db.post("/api/videos/scan")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["removed"] == 3
+    assert data["total_found"] == 0
+    assert len(video_repo.get_all()) == 0
