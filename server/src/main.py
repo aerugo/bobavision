@@ -53,6 +53,19 @@ class ClientUpdate(BaseModel):
     tag_filters: Optional[str] = Field(None, description="Comma-separated tags for filtering")
 
 
+class BonusPlaysRequest(BaseModel):
+    """Request schema for adding bonus plays."""
+    count: int = Field(..., gt=0, le=100, description="Number of bonus plays to add (1-100)")
+
+
+class BonusPlaysResponse(BaseModel):
+    """Response schema for bonus plays operation."""
+    client_id: str = Field(..., description="Client identifier")
+    bonus_plays_count: int = Field(..., description="Total bonus plays for today")
+    bonus_plays_date: str = Field(..., description="Date bonus plays apply to (YYYY-MM-DD)")
+    new_effective_limit: int = Field(..., description="New effective daily limit including bonus")
+
+
 # Video management schemas
 class VideoResponse(BaseModel):
     """Response schema for video data."""
@@ -171,6 +184,11 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# Mount static files for limit reached animation
+static_path = Path(__file__).parent.parent / "static"
+if static_path.exists() and static_path.is_dir():
+    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
 
 # Global media directory (can be set for testing)
 MEDIA_DIRECTORY = "../media/library"
@@ -258,8 +276,8 @@ def get_next_video(
 
             is_placeholder = video.is_placeholder
 
-            # Log the play
-            play_log_repo.log_play(
+            # Log the play (non-blocking - video will be served even if logging fails)
+            play_log_repo.log_play_safe(
                 client_id=client_id,
                 video_id=video.id,
                 is_placeholder=is_placeholder
@@ -285,10 +303,10 @@ def get_next_video(
         video = video_repo.get_random_placeholder()
 
         if video is None:
-            # No placeholder videos available - return error message
+            # No placeholder videos available - return HTML animation
             return NextVideoResponse(
-                url="/media/library/none.mp4",
-                title="No placeholder videos available",
+                url="/static/limit_reached.html",
+                title="All Done for Today!",
                 placeholder=True
             )
     else:
@@ -307,8 +325,8 @@ def get_next_video(
     # This ensures consistency with queue path and correct limit enforcement
     is_placeholder = video.is_placeholder
 
-    # Log the play
-    play_log_repo.log_play(
+    # Log the play (non-blocking - video will be served even if logging fails)
+    play_log_repo.log_play_safe(
         client_id=client_id,
         video_id=video.id,
         is_placeholder=is_placeholder
@@ -435,6 +453,54 @@ def update_client(
     updated_client = client_repo.update(client_id, **update_data)
 
     return updated_client
+
+
+@app.post("/api/clients/{client_id}/add-bonus-plays", response_model=BonusPlaysResponse)
+def add_bonus_plays(
+    client_id: str,
+    bonus_data: BonusPlaysRequest,
+    db: Session = Depends(get_db)
+):
+    """Add bonus plays to a client for today.
+
+    Bonus plays are extra videos that can be watched today only,
+    without affecting the base daily limit for future days.
+
+    Args:
+        client_id: Unique client identifier
+        bonus_data: Number of bonus plays to add
+
+    Returns:
+        Updated bonus plays information
+
+    Raises:
+        HTTPException: 404 if client not found
+    """
+    client_repo = ClientRepository(db)
+    limit_service = LimitService(db)
+
+    # Check if client exists
+    client = client_repo.get_by_id(client_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail=f"Client '{client_id}' not found")
+
+    # Add bonus plays for today
+    today = date.today()
+    updated_client = client_repo.add_bonus_plays(
+        client_id=client_id,
+        bonus_count=bonus_data.count,
+        bonus_date=today
+    )
+
+    # Get effective limit with bonus
+    effective_limit = limit_service.get_effective_daily_limit(client_id, today)
+
+    return BonusPlaysResponse(
+        client_id=updated_client.client_id,
+        bonus_plays_count=updated_client.bonus_plays_count,
+        bonus_plays_date=updated_client.bonus_plays_date.isoformat(),
+        new_effective_limit=effective_limit
+    )
 
 
 # Video management endpoints

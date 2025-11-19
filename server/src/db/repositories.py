@@ -5,11 +5,17 @@ GREEN phase: Implement repositories to pass tests.
 Repositories provide a data access layer, separating business logic from database queries.
 """
 import random
+import time as time_module
+import logging
 from datetime import date, datetime, time
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.db.models import Video, ClientSettings, PlayLog
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class VideoRepository:
@@ -265,6 +271,38 @@ class ClientRepository:
         self.db.refresh(client)
         return client
 
+    def add_bonus_plays(
+        self,
+        client_id: str,
+        bonus_count: int,
+        bonus_date: date
+    ) -> Optional[ClientSettings]:
+        """Add bonus plays to a client for a specific date.
+
+        Args:
+            client_id: Client identifier
+            bonus_count: Number of bonus plays to add
+            bonus_date: Date the bonus plays apply to
+
+        Returns:
+            Updated ClientSettings object or None if not found
+        """
+        client = self.get_by_id(client_id)
+        if not client:
+            return None
+
+        # If bonus plays are for the same date, add to existing bonus
+        if client.bonus_plays_date == bonus_date:
+            client.bonus_plays_count += bonus_count
+        else:
+            # New date - replace existing bonus plays
+            client.bonus_plays_count = bonus_count
+            client.bonus_plays_date = bonus_date
+
+        self.db.commit()
+        self.db.refresh(client)
+        return client
+
 
 class PlayLogRepository:
     """Repository for PlayLog model operations."""
@@ -305,6 +343,96 @@ class PlayLogRepository:
         self.db.commit()
         self.db.refresh(play)
         return play
+
+    def log_play_safe(
+        self,
+        client_id: str,
+        video_id: int,
+        is_placeholder: bool,
+        completed: bool = False,
+        max_retries: int = 3
+    ) -> Optional[PlayLog]:
+        """Log a video play with retry logic and error handling.
+
+        This method is designed to be robust and non-blocking. If logging fails
+        after all retries, it logs the error but returns None without raising
+        an exception, allowing the calling code to continue.
+
+        Args:
+            client_id: Client identifier
+            video_id: Video ID
+            is_placeholder: Whether the video is a placeholder
+            completed: Whether the video was completed
+            max_retries: Maximum number of retry attempts (default: 3)
+
+        Returns:
+            Created PlayLog object if successful, None if all retries failed
+        """
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                # Attempt to log the play
+                play = self.log_play(
+                    client_id=client_id,
+                    video_id=video_id,
+                    is_placeholder=is_placeholder,
+                    completed=completed
+                )
+
+                # Success! Log and return
+                if attempt > 0:
+                    logger.info(
+                        f"Play logged successfully on attempt {attempt + 1}/{max_retries} "
+                        f"for client={client_id}, video={video_id}"
+                    )
+                return play
+
+            except SQLAlchemyError as e:
+                last_error = e
+                logger.warning(
+                    f"Failed to log play on attempt {attempt + 1}/{max_retries} "
+                    f"for client={client_id}, video={video_id}: {str(e)}"
+                )
+
+                # Rollback the transaction to clean up
+                try:
+                    self.db.rollback()
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback transaction: {rollback_error}")
+
+                # Don't sleep on the last attempt
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 0.1s, 0.2s, 0.4s, etc.
+                    sleep_time = 0.1 * (2 ** attempt)
+                    logger.debug(f"Waiting {sleep_time}s before retry...")
+                    time_module.sleep(sleep_time)
+
+            except Exception as e:
+                # Catch any other unexpected exceptions
+                last_error = e
+                logger.error(
+                    f"Unexpected error logging play on attempt {attempt + 1}/{max_retries} "
+                    f"for client={client_id}, video={video_id}: {str(e)}",
+                    exc_info=True
+                )
+
+                # Try to rollback
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+                # For unexpected errors, don't retry
+                break
+
+        # All retries failed
+        logger.error(
+            f"Failed to log play after {max_retries} attempts "
+            f"for client={client_id}, video={video_id}. Last error: {last_error}",
+            exc_info=True
+        )
+        return None
 
     def count_plays_today(self, client_id: str, today: date) -> int:
         """Count all plays for a client today.
