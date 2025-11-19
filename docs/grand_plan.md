@@ -10,9 +10,9 @@ This document serves as the **single source of truth** for the entire Kids Singl
 - Success criteria and acceptance tests
 - Architecture decisions and rationale
 
-**Last Updated**: 2025-11-18
+**Last Updated**: 2025-11-19
 **Current Phase**: Phase 5 - Hardware Integration & Polish
-**Overall Progress**: 75% (4/6 phases complete - Phase 4 complete)
+**Overall Progress**: 75% (4/6 phases complete - Phase 4 complete with enhancements)
 
 ---
 
@@ -167,6 +167,8 @@ play_log(
 - `GET /api/clients/{id}` - Get client details
 - `POST /api/clients` - Create new client
 - `PATCH /api/clients/{id}` - Update client settings
+- `PUT /api/clients/{id}` - Update client settings (alternative method)
+- `POST /api/clients/{client_id}/add-bonus-plays` - Grant bonus plays for a specific date
 
 #### Queue Management
 - `GET /api/queue/{client_id}` - Get client's queue
@@ -322,6 +324,25 @@ play_log(
 - [x] **CODE**: Implement video management endpoints
 - [x] **REFACTOR**: Extract database operations to repository layer
 
+#### Enhanced Features (Post-Phase 2)
+- [x] **Sync Library Deletion**: Videos deleted from library are automatically removed from database
+  - CASCADE delete on queue items when video is deleted
+  - Preserve play logs for historical statistics (SET NULL on video_id)
+  - Returns count of removed videos in scan response
+- [x] **Bonus Plays Feature**: Temporary quota increases for special occasions
+  - Added `bonus_plays_count` and `bonus_plays_date` fields to ClientSettings
+  - Bonus plays only apply to the specific date granted
+  - API endpoint: `POST /api/clients/{client_id}/add-bonus-plays`
+  - UI in Settings page for granting bonus plays
+- [x] **Robust Play Logging**: Retry logic with exponential backoff
+  - `log_play_safe()` method with 3 retry attempts
+  - Non-blocking - video serves even if logging fails
+  - Comprehensive error logging for troubleshooting
+- [x] **HTML Animation Fallback**: When no placeholder videos exist
+  - Static HTML page with CSS animations (`/server/static/limit_reached.html`)
+  - Child-friendly "All Done for Today!" message
+  - Graceful degradation when placeholder library is empty
+
 #### Deliverables
 - [x] `/server/src/db/models.py` - SQLAlchemy models (Video, ClientSettings, PlayLog)
 - [x] `/server/src/db/database.py` - Database connection setup
@@ -422,6 +443,21 @@ play_log(
 - [x] **CODE**: Add loading states and error handling
 - [x] **CONFIG**: Update Vite build config to output to `/server/static/admin`
 - [x] **REFACTOR**: Extract common components if needed (optional)
+
+#### Enhanced Features (Post-Phase 3)
+- [x] **Add Videos Button**: Modal dialog for adding videos to queue
+  - Multi-select functionality with checkboxes
+  - Filters non-placeholder videos only
+  - Batch add to queue with single API call
+  - Auto-refresh queue after adding
+- [x] **Video Stats Display**: Real-time usage information in Settings page
+  - Shows videos watched today
+  - Shows videos remaining (with bonus plays)
+  - Shows daily limit
+  - Auto-refreshes on client selection or settings save
+- [x] **CORS Middleware**: Enable cross-origin requests for admin UI
+  - Allows admin UI to connect to server from different origin
+  - Essential for development and some deployment scenarios
 
 #### Deliverables
 - [x] `/server/src/main.py` - Queue endpoints integrated (not separate file)
@@ -689,6 +725,17 @@ The beauty of HTML/CSS is that you can create everything with code:
 - Error screen: CSS styling + friendly text
 - Transitions: CSS transitions/transforms
 
+#### Enhanced Features (Post-Phase 4)
+- [x] **Local Test Runner**: Development testing without GPIO hardware
+  - Keyboard simulation using pynput library
+  - SPACE key simulates button press
+  - Replaces GPIO ButtonHandler with KeyboardButtonSimulator
+  - Maintains same ClientApp interface
+  - Useful for testing server/client integration locally
+- [x] **Improved Error Handling**: Enhanced mpv error detection and logging
+  - Better process monitoring
+  - Detailed error messages for troubleshooting
+
 #### Deliverables
 
 - [x] `/client/src/web_server.py` - HTTP server for UI assets (Flask-based, 9 tests)
@@ -698,6 +745,7 @@ The beauty of HTML/CSS is that you can create everything with code:
 - [x] `/client/src/player.py` - mpv video player wrapper (17 tests)
 - [x] `/client/src/button.py` - GPIO button handler (14 tests)
 - [x] `/client/src/main.py` - Main entry point integrating all components (10 tests)
+- [x] `/client/run_local.py` - Local test runner with keyboard support
 - [x] `/client/ui/` - Web UI directory
   - [x] `splash.html` - Splash screen
   - [x] `loading.html` - Loading screen
@@ -927,13 +975,20 @@ Manual testing on Raspberry Pi (DEFERRED TO PHASE 5):
 - ✅ Phase 0: Project setup and documentation (100%)
 - ✅ Phase 1: Core API endpoints and media serving (100%)
 - ✅ Phase 2: Database integration and daily limits (100%)
+  - Enhanced with bonus plays feature (temporary quota increases)
+  - Sync library deletion (CASCADE to queue, preserve play logs)
+  - Robust play logging with retry logic
+  - HTML animation fallback when no placeholders exist
 - ✅ Phase 3: Queue & Admin UI (100%)
   - Queue repository and API endpoints (21 + 28 tests)
   - Statistics endpoints (20 tests)
   - Admin UI with 4 pages (57 tests total)
   - Vite build configuration for deployment
+  - Add Videos button with modal dialog for batch adding
+  - Video stats display in Settings page
+  - CORS middleware for flexible deployment
   - 89.04% frontend coverage, 98.29% backend coverage
-- ✅ Phase 4: Client Application & Kid-Friendly UI (100%) - JUST COMPLETED!
+- ✅ Phase 4: Client Application & Kid-Friendly UI (100%)
   - Flask web server for serving UI assets (9 tests, 90% coverage)
   - mpv video player wrapper (17 tests, 98% coverage)
   - GPIO button handler with gpiozero (14 tests, 95% coverage)
@@ -941,8 +996,14 @@ Manual testing on Raspberry Pi (DEFERRED TO PHASE 5):
   - API client for server communication (10 tests, 75% coverage)
   - Main application loop integrating all components (10 tests)
   - HTML/CSS UI screens (splash, loading, all_done, error)
+  - Local test runner with keyboard support (run_local.py)
   - Playwright E2E tests (24 tests)
   - 83 unit tests passing, 85% code coverage
+- ✅ Technical Improvements (2025-11-19):
+  - Pydantic v2 migration (ConfigDict, modern patterns)
+  - PUT method support for client updates
+  - Improved mpv error handling and logging
+  - All deprecation warnings eliminated
 
 **Active Tasks**:
 - None - Phase 4 complete!
@@ -967,28 +1028,32 @@ Manual testing on Raspberry Pi (DEFERRED TO PHASE 5):
 | Total Client Tests | - | 83 unit + 24 Playwright tests ✅ |
 | Admin Tests | - | 57 tests ✅ |
 | Total Tests (Phases 0-4) | - | 305 unit tests + 24 E2E tests ✅ |
-| API Endpoints Implemented | 20 | 20 ✅ |
+| API Endpoints Implemented | 22 | 22 ✅ |
 | Database Tables | 4 | 4 ✅ |
 | React Components | 4 pages | 4 ✅ |
 | Client Components | 6 modules | 6 ✅ |
 
-**Endpoints Implemented (20/20)**:
+**Endpoints Implemented (22/22)**:
 1. `GET /` - API info ✅
 2. `GET /api/next` - Get next video (queue-first, then limit enforcement) ✅
 3. `GET /api/clients` - List all clients ✅
 4. `GET /api/clients/{id}` - Get client details ✅
 5. `POST /api/clients` - Create client ✅
 6. `PATCH /api/clients/{id}` - Update client ✅
-7. `GET /api/videos` - List videos with filters ✅
-8. `POST /api/videos/scan` - Scan media directory ✅
-9. `GET /api/queue/{client_id}` - Get client's queue ✅
-10. `POST /api/queue/{client_id}` - Add videos to queue ✅
-11. `DELETE /api/queue/{client_id}/{queue_id}` - Remove from queue ✅
-12. `POST /api/queue/{client_id}/clear` - Clear entire queue ✅
-13. `PUT /api/queue/{client_id}/reorder` - Reorder queue ✅
-14. `GET /api/stats` - System-wide statistics ✅
-15. `GET /api/stats/client/{client_id}` - Client-specific statistics ✅
-16. `GET /media/library/{path}` - Static file serving ✅
+7. `PUT /api/clients/{id}` - Update client (alternative method) ✅
+8. `POST /api/clients/{client_id}/add-bonus-plays` - Grant bonus plays ✅
+9. `GET /api/videos` - List videos with filters ✅
+10. `POST /api/videos/scan` - Scan media directory (with sync deletion) ✅
+11. `GET /api/queue/{client_id}` - Get client's queue ✅
+12. `POST /api/queue/{client_id}` - Add videos to queue ✅
+13. `DELETE /api/queue/{client_id}/{queue_id}` - Remove from queue ✅
+14. `POST /api/queue/{client_id}/clear` - Clear entire queue ✅
+15. `PUT /api/queue/{client_id}/reorder` - Reorder queue ✅
+16. `GET /api/stats` - System-wide statistics ✅
+17. `GET /api/stats/client/{client_id}` - Client-specific statistics ✅
+18. `GET /media/library/{path}` - Static file serving ✅
+19. `GET /static/admin/{path}` - Admin UI static files ✅
+20. `GET /static/limit_reached.html` - HTML animation fallback ✅
 
 **Admin UI Components (4/4)**:
 1. Dashboard - System stats display ✅
@@ -1268,6 +1333,35 @@ Before merging any phase:
 - **Implementation approach**: Multi-stage Docker build with Alpine Linux for minimal image size
 - **Future benefits**: mpv enables metadata extraction, thumbnail generation, and video validation
 - **Added to grand plan**: Containerization tasks added to Phase 5 with full TDD workflow
+
+### 2025-11-19: Post-Launch Feature Enhancements
+- **Video Limit System Improvements**:
+  - Added bonus plays feature for temporary quota increases (special occasions, good behavior rewards)
+  - Implemented HTML animation fallback when no placeholder videos exist
+  - Added robust play logging with retry logic to prevent database issues from affecting playback
+  - Video stats display in Settings page shows real-time usage information
+
+- **Library Management Enhancements**:
+  - Sync library deletion automatically removes videos from DB when deleted from filesystem
+  - CASCADE delete ensures queue items are cleaned up
+  - Play logs preserved for historical statistics (video_id SET NULL)
+
+- **Admin UI Improvements**:
+  - Add Videos button with modal dialog for batch adding to queue
+  - Multi-select functionality with checkboxes
+  - Real-time stats display in Settings page
+  - CORS middleware for flexible deployment
+
+- **Developer Experience**:
+  - Local test runner (run_local.py) for testing without GPIO hardware
+  - Keyboard simulation (SPACE key) for button press
+  - Improved mpv error handling and logging
+
+- **Technical Debt Reduction**:
+  - Migrated to Pydantic v2 (ConfigDict, modern patterns)
+  - Replaced deprecated @app.on_event with lifespan context manager
+  - Added PUT method support for client updates alongside PATCH
+  - All deprecation warnings eliminated
 
 ---
 
