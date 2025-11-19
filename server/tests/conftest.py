@@ -46,6 +46,7 @@ def db_session():
     """
     # Import all models to ensure they're registered with Base
     from src.db.models import Base, Video, ClientSettings, PlayLog, Queue
+    from sqlalchemy import event
 
     # Use a shared in-memory database that persists across connections
     # The "file::memory:?cache=shared" URI creates a shared in-memory database
@@ -54,6 +55,14 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool  # Use StaticPool to keep single connection
     )
+
+    # Enable foreign key constraints for SQLite (required for CASCADE deletes)
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -85,6 +85,23 @@ class VideoRepository:
         self.db.refresh(video)
         return video
 
+    def delete(self, video_id: int) -> bool:
+        """Delete a video by ID.
+
+        Args:
+            video_id: Video ID to delete
+
+        Returns:
+            True if video was deleted, False if not found
+        """
+        video = self.get_by_id(video_id)
+        if not video:
+            return False
+
+        self.db.delete(video)
+        self.db.commit()
+        return True
+
     def get_non_placeholders(self) -> List[Video]:
         """Get all non-placeholder videos.
 

@@ -71,6 +71,7 @@ class ScanResponse(BaseModel):
     """Response schema for video scan operation."""
     added: int = Field(..., description="Number of videos added to database")
     skipped: int = Field(..., description="Number of videos skipped (already in DB)")
+    removed: int = Field(..., description="Number of videos removed from database (no longer in library)")
     total_found: int = Field(..., description="Total video files found")
 
 
@@ -471,10 +472,12 @@ def get_videos(
 
 @app.post("/api/videos/scan", response_model=ScanResponse)
 def scan_videos(db: Session = Depends(get_db)):
-    """Scan media directory and add new videos to database.
+    """Scan media directory and sync videos with database.
+
+    Adds new videos, skips existing ones, and removes videos that are no longer in the library.
 
     Returns:
-        Scan results with counts of added, skipped, and total files
+        Scan results with counts of added, skipped, removed, and total files
     """
     from src.media.scanner import VideoScanner
 
@@ -483,11 +486,18 @@ def scan_videos(db: Session = Depends(get_db)):
 
     # Check if directory exists
     if not media_dir.exists():
-        return ScanResponse(added=0, skipped=0, total_found=0)
+        # If directory doesn't exist, remove all videos from DB
+        video_repo = VideoRepository(db)
+        all_videos = video_repo.get_all()
+        removed = len(all_videos)
+        for video in all_videos:
+            video_repo.delete(video.id)
+        return ScanResponse(added=0, skipped=0, removed=removed, total_found=0)
 
     # Scan for videos
     scanner = VideoScanner(str(media_dir))
     video_paths = scanner.scan()
+    video_paths_set = set(video_paths)
 
     # Process each video
     video_repo = VideoRepository(db)
@@ -519,9 +529,20 @@ def scan_videos(db: Session = Depends(get_db)):
         )
         added += 1
 
+    # Remove videos from DB that are no longer in the filesystem
+    all_videos = video_repo.get_all()
+    removed = 0
+
+    for video in all_videos:
+        if video.path not in video_paths_set:
+            # Video no longer exists in library - remove it
+            video_repo.delete(video.id)
+            removed += 1
+
     return ScanResponse(
         added=added,
         skipped=skipped,
+        removed=removed,
         total_found=len(video_paths)
     )
 
