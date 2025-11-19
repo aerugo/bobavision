@@ -44,10 +44,9 @@ def sample_videos_in_db(db_session):
 
     repo = VideoRepository(db_session)
     videos = [
-        repo.create(path="cartoons/video1.mp4", title="Cartoon 1", is_placeholder=False, tags="cartoons"),
-        repo.create(path="educational/video2.mp4", title="Educational 2", is_placeholder=False, tags="educational"),
-        repo.create(path="placeholder.mp4", title="All Done!", is_placeholder=True),
-        repo.create(path="bedtime/story.mp4", title="Bedtime Story", is_placeholder=False, tags="bedtime"),
+        repo.create(path="cartoons/video1.mp4", title="Cartoon 1", tags="cartoons"),
+        repo.create(path="educational/video2.mp4", title="Educational 2", tags="educational"),
+        repo.create(path="bedtime/story.mp4", title="Bedtime Story", tags="bedtime"),
     ]
     return videos
 
@@ -101,7 +100,7 @@ def test_get_videos_returns_all_videos(client_with_db, sample_videos_in_db):
     data = response.json()
 
     assert isinstance(data, list)
-    assert len(data) == 4
+    assert len(data) == 3
 
     # Check structure of first video
     video = data[0]
@@ -109,37 +108,10 @@ def test_get_videos_returns_all_videos(client_with_db, sample_videos_in_db):
     assert "path" in video
     assert "title" in video
     assert "tags" in video
-    assert "is_placeholder" in video
     assert "duration_seconds" in video
     assert "created_at" in video
 
 
-def test_get_videos_filters_by_is_placeholder_false(client_with_db, sample_videos_in_db):
-    """Test that GET /api/videos?is_placeholder=false returns only non-placeholder videos."""
-    # Act
-    response = client_with_db.get("/api/videos?is_placeholder=false")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-
-    assert len(data) == 3  # Should exclude the placeholder
-    for video in data:
-        assert video["is_placeholder"] is False
-
-
-def test_get_videos_filters_by_is_placeholder_true(client_with_db, sample_videos_in_db):
-    """Test that GET /api/videos?is_placeholder=true returns only placeholder videos."""
-    # Act
-    response = client_with_db.get("/api/videos?is_placeholder=true")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-
-    assert len(data) == 1  # Should only return the placeholder
-    assert data[0]["is_placeholder"] is True
-    assert data[0]["title"] == "All Done!"
 
 
 def test_get_videos_filters_by_tags(client_with_db, sample_videos_in_db):
@@ -251,7 +223,7 @@ def test_scan_videos_skips_existing_videos(client_with_db, db_session, media_dir
     video_repo = VideoRepository(db_session)
 
     # Pre-populate with one video
-    video_repo.create(path="cartoons/peppa.mp4", title="Peppa Pig", is_placeholder=False)
+    video_repo.create(path="cartoons/peppa.mp4", title="Peppa Pig")
 
     # Act - First scan
     response1 = client_with_db.post("/api/videos/scan")
@@ -294,30 +266,6 @@ def test_scan_videos_generates_title_from_filename(client_with_db, db_session, m
     assert ".mp4" not in peppa.title
 
 
-def test_scan_videos_detects_placeholders(client_with_db, db_session, media_directory_with_files, monkeypatch):
-    """Test that scanning detects placeholder videos by path."""
-    # Arrange
-    from src import main
-    from src.db.repositories import VideoRepository
-
-    monkeypatch.setattr(main, "MEDIA_DIRECTORY", str(media_directory_with_files))
-
-    # Act
-    response = client_with_db.post("/api/videos/scan")
-
-    # Assert
-    assert response.status_code == 200
-
-    video_repo = VideoRepository(db_session)
-    videos = video_repo.get_all()
-
-    # Find placeholder video
-    placeholders = [v for v in videos if v.is_placeholder]
-    assert len(placeholders) > 0
-
-    # Check that it's from the placeholders directory
-    placeholder = placeholders[0]
-    assert "placeholder" in placeholder.path.lower()
 
 
 def test_scan_videos_extracts_tags_from_directory(client_with_db, db_session, media_directory_with_files, monkeypatch):
@@ -407,7 +355,6 @@ def test_scan_videos_removes_videos_not_in_library(client_with_db, db_session, m
     deleted_video = video_repo.create(
         path="deleted/video.mp4",
         title="Deleted Video",
-        is_placeholder=False,
         tags="deleted"
     )
 
@@ -415,7 +362,6 @@ def test_scan_videos_removes_videos_not_in_library(client_with_db, db_session, m
     video_repo.create(
         path="cartoons/peppa.mp4",
         title="Peppa",
-        is_placeholder=False,
         tags="cartoons"
     )
 
@@ -450,9 +396,9 @@ def test_scan_videos_returns_removed_count(client_with_db, db_session, media_dir
     video_repo = VideoRepository(db_session)
 
     # Add multiple videos that don't exist in filesystem
-    video_repo.create(path="deleted1.mp4", title="Deleted 1", is_placeholder=False)
-    video_repo.create(path="deleted2.mp4", title="Deleted 2", is_placeholder=False)
-    video_repo.create(path="deleted3.mp4", title="Deleted 3", is_placeholder=False)
+    video_repo.create(path="deleted1.mp4", title="Deleted 1")
+    video_repo.create(path="deleted2.mp4", title="Deleted 2")
+    video_repo.create(path="deleted3.mp4", title="Deleted 3")
 
     # Act
     response = client_with_db.post("/api/videos/scan")
@@ -486,8 +432,7 @@ def test_scan_videos_removes_queue_items_for_deleted_videos(client_with_db, db_s
     # Add a video that doesn't exist in filesystem
     deleted_video = video_repo.create(
         path="deleted/video.mp4",
-        title="Deleted Video",
-        is_placeholder=False
+        title="Deleted Video"
     )
 
     # Add this video to the queue
@@ -529,8 +474,7 @@ def test_scan_videos_preserves_play_logs_for_deleted_videos(client_with_db, db_s
     # Add a video that doesn't exist in filesystem
     deleted_video = video_repo.create(
         path="deleted/video.mp4",
-        title="Deleted Video",
-        is_placeholder=False
+        title="Deleted Video"
     )
 
     deleted_video_id = deleted_video.id
@@ -538,8 +482,7 @@ def test_scan_videos_preserves_play_logs_for_deleted_videos(client_with_db, db_s
     # Log a play for this video
     play_log = play_log_repo.log_play(
         client_id=client.client_id,
-        video_id=deleted_video_id,
-        is_placeholder=False
+        video_id=deleted_video_id
     )
     play_log_id = play_log.id
 
@@ -565,7 +508,6 @@ def test_scan_videos_preserves_play_logs_for_deleted_videos(client_with_db, db_s
     ).first()
     assert preserved_play_log is not None
     assert preserved_play_log.video_id is None  # Foreign key set to NULL
-    assert preserved_play_log.is_placeholder is False  # Other fields preserved
 
 
 def test_scan_videos_handles_all_videos_deleted(client_with_db, db_session, tmp_path, monkeypatch):
@@ -583,9 +525,9 @@ def test_scan_videos_handles_all_videos_deleted(client_with_db, db_session, tmp_
     video_repo = VideoRepository(db_session)
 
     # Add some videos to DB that don't exist in filesystem
-    video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    video_repo.create(path="video1.mp4", title="Video 1")
+    video_repo.create(path="video2.mp4", title="Video 2")
+    video_repo.create(path="video3.mp4", title="Video 3")
 
     assert len(video_repo.get_all()) == 3
 

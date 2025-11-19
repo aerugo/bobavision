@@ -17,7 +17,7 @@ def test_queue_model_creation(db_session):
     from src.db.models import Queue, Video, ClientSettings
 
     # Arrange - Create dependencies
-    video = Video(path="test.mp4", title="Test Video", is_placeholder=False)
+    video = Video(path="test.mp4", title="Test Video")
     client = ClientSettings(client_id="test_client", friendly_name="Test Client", daily_limit=3)
 
     db_session.add(video)
@@ -47,7 +47,7 @@ def test_queue_model_has_video_relationship(db_session):
     from src.db.models import Queue, Video, ClientSettings
 
     # Arrange
-    video = Video(path="test.mp4", title="Test Video", is_placeholder=False)
+    video = Video(path="test.mp4", title="Test Video")
     client = ClientSettings(client_id="test_client", friendly_name="Test", daily_limit=3)
     db_session.add_all([video, client])
     db_session.commit()
@@ -74,9 +74,9 @@ def test_queue_repository_get_by_client(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    v3 = video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
+    v3 = video_repo.create(path="video3.mp4", title="Video 3")
 
     client_repo.create(client_id="client1", friendly_name="Client 1", daily_limit=3)
     client_repo.create(client_id="client2", friendly_name="Client 2", daily_limit=3)
@@ -122,9 +122,9 @@ def test_queue_repository_get_by_client_returns_sorted_by_position(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    v3 = video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
+    v3 = video_repo.create(path="video3.mp4", title="Video 3")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
@@ -152,7 +152,7 @@ def test_queue_repository_add_creates_queue_item(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    video = video_repo.create(path="test.mp4", title="Test", is_placeholder=False)
+    video = video_repo.create(path="test.mp4", title="Test")
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
     # Act
@@ -174,9 +174,9 @@ def test_queue_repository_add_auto_increments_position(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    v3 = video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
+    v3 = video_repo.create(path="video3.mp4", title="Video 3")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
@@ -200,8 +200,8 @@ def test_queue_repository_get_next_returns_first_item(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
@@ -242,7 +242,7 @@ def test_queue_repository_remove_deletes_item(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    video = video_repo.create(path="test.mp4", title="Test", is_placeholder=False)
+    video = video_repo.create(path="test.mp4", title="Test")
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
     queue_repo = QueueRepository(db_session)
@@ -273,9 +273,9 @@ def test_queue_repository_clear_removes_all_items_for_client(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    v3 = video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
+    v3 = video_repo.create(path="video3.mp4", title="Video 3")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
@@ -300,8 +300,8 @@ def test_queue_repository_clear_only_affects_specified_client(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
 
     client_repo.create(client_id="client1", friendly_name="Client 1", daily_limit=3)
     client_repo.create(client_id="client2", friendly_name="Client 2", daily_limit=3)
@@ -329,9 +329,9 @@ def test_queue_repository_reorder_updates_positions(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    v3 = video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
+    v3 = video_repo.create(path="video3.mp4", title="Video 3")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
@@ -362,8 +362,8 @@ def test_queue_repository_pop_removes_and_returns_first_item(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 
@@ -408,9 +408,9 @@ def test_queue_repository_count_returns_queue_size(db_session):
     video_repo = VideoRepository(db_session)
     client_repo = ClientRepository(db_session)
 
-    v1 = video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False)
-    v2 = video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False)
-    v3 = video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False)
+    v1 = video_repo.create(path="video1.mp4", title="Video 1")
+    v2 = video_repo.create(path="video2.mp4", title="Video 2")
+    v3 = video_repo.create(path="video3.mp4", title="Video 3")
 
     client_repo.create(client_id="test", friendly_name="Test", daily_limit=3)
 

@@ -83,18 +83,16 @@ class LimitService:
         return base_limit
 
     def count_plays_today(self, client_id: str, today: date) -> int:
-        """Count non-placeholder plays for client today.
-
-        Placeholder plays don't count toward the limit.
+        """Count plays for client today.
 
         Args:
             client_id: Client identifier
             today: Date to count plays for
 
         Returns:
-            Number of non-placeholder plays today
+            Number of plays today
         """
-        return self.play_log_repo.count_non_placeholder_plays_today(
+        return self.play_log_repo.count_plays_today(
             client_id,
             today
         )

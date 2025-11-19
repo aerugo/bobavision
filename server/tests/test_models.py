@@ -38,7 +38,6 @@ def test_video_model_creation(db_session):
         path="test/video.mp4",
         title="Test Video",
         tags="cartoon,kids",
-        is_placeholder=False,
         duration_seconds=600
     )
     db_session.add(video)
@@ -49,7 +48,6 @@ def test_video_model_creation(db_session):
     assert video.path == "test/video.mp4"
     assert video.title == "Test Video"
     assert video.tags == "cartoon,kids"
-    assert video.is_placeholder is False
     assert video.duration_seconds == 600
     assert isinstance(video.created_at, datetime)
 
@@ -82,7 +80,6 @@ def test_video_model_defaults(db_session):
     db_session.commit()
 
     # Assert
-    assert video.is_placeholder is False  # Default should be False
     assert video.tags is None or video.tags == ""  # Default empty
     assert video.duration_seconds is None  # Optional field
 
@@ -142,7 +139,6 @@ def test_play_log_model_creation(db_session):
     play = PlayLog(
         client_id=client.client_id,
         video_id=video.id,
-        is_placeholder=False,
         completed=True
     )
     db_session.add(play)
@@ -152,7 +148,6 @@ def test_play_log_model_creation(db_session):
     assert play.id is not None
     assert play.client_id == "test"
     assert play.video_id == video.id
-    assert play.is_placeholder is False
     assert play.completed is True
     assert isinstance(play.played_at, datetime)
 
@@ -170,8 +165,7 @@ def test_play_log_relationships(db_session):
 
     play = PlayLog(
         client_id=client.client_id,
-        video_id=video.id,
-        is_placeholder=False
+        video_id=video.id
     )
     db_session.add(play)
     db_session.commit()
@@ -195,8 +189,7 @@ def test_play_log_defaults(db_session):
     # Act
     play = PlayLog(
         client_id=client.client_id,
-        video_id=video.id,
-        is_placeholder=True
+        video_id=video.id
     )
     db_session.add(play)
     db_session.commit()
@@ -218,8 +211,8 @@ def test_multiple_play_logs_for_same_client(db_session):
     db_session.commit()
 
     # Act - Create multiple plays
-    play1 = PlayLog(client_id=client.client_id, video_id=video1.id, is_placeholder=False)
-    play2 = PlayLog(client_id=client.client_id, video_id=video2.id, is_placeholder=False)
+    play1 = PlayLog(client_id=client.client_id, video_id=video1.id)
+    play2 = PlayLog(client_id=client.client_id, video_id=video2.id)
     db_session.add_all([play1, play2])
     db_session.commit()
 

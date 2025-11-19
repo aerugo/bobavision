@@ -46,9 +46,9 @@ def sample_data(db_session):
 
     # Create videos
     videos = [
-        video_repo.create(path="video1.mp4", title="Video 1", is_placeholder=False),
-        video_repo.create(path="video2.mp4", title="Video 2", is_placeholder=False),
-        video_repo.create(path="video3.mp4", title="Video 3", is_placeholder=False),
+        video_repo.create(path="video1.mp4", title="Video 1"),
+        video_repo.create(path="video2.mp4", title="Video 2"),
+        video_repo.create(path="video3.mp4", title="Video 3"),
     ]
 
     # Create client

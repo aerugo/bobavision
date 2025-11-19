@@ -20,7 +20,6 @@ class Video(Base):
     path = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     tags = Column(String, nullable=True)  # Comma-separated tags
-    is_placeholder = Column(Boolean, default=False, nullable=False)
     duration_seconds = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -70,7 +69,6 @@ class PlayLog(Base):
         nullable=True  # Allow NULL to preserve logs when video is deleted
     )
     played_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    is_placeholder = Column(Boolean, nullable=False)
     completed = Column(Boolean, default=False, nullable=False)
 
     # Relationships
