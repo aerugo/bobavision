@@ -60,6 +60,9 @@ class ClientApp:
         # Thread for monitoring video playback
         self.monitor_thread: Optional[threading.Thread] = None
 
+        # Browser process for displaying HTML pages
+        self.browser_process = None
+
         logger.info(
             f"ClientApp initialized: server={server_url}, "
             f"client_id={client_id}, web_port={web_server_port}"
@@ -102,6 +105,15 @@ class ClientApp:
         self.web_server.stop()
         self.button_handler.close()
 
+        # Clean up browser process if running
+        if self.browser_process:
+            try:
+                self.browser_process.terminate()
+                self.browser_process.wait(timeout=2)
+            except Exception as e:
+                logger.warning(f"Error terminating browser process: {e}")
+            self.browser_process = None
+
         logger.info("ClientApp stopped successfully")
 
     def _on_button_press(self):
@@ -140,13 +152,18 @@ class ClientApp:
                     f"(placeholder={is_placeholder}, url={video_url})"
                 )
 
-                # Start video playback
-                self.player.play(video_url)
+                # Check if this is an HTML page (UI screen) vs actual video
+                if video_url.endswith('.html'):
+                    logger.info(f"Detected HTML page, opening in browser: {video_url}")
+                    self._display_html_page(video_url)
+                else:
+                    # Start video playback with MPV
+                    self.player.play(video_url)
 
                 # Transition to PLAYING state
                 self.state_machine.on_video_ready()
 
-                # Start monitoring for video completion
+                # Start monitoring for completion
                 self._start_video_monitor()
 
             except Exception as e:
@@ -160,14 +177,57 @@ class ClientApp:
         thread = threading.Thread(target=fetch_and_play, daemon=True)
         thread.start()
 
+    def _display_html_page(self, url: str):
+        """
+        Display an HTML page in a browser (for UI screens like limit reached).
+
+        Args:
+            url: URL of the HTML page to display
+        """
+        import subprocess
+        import shutil
+
+        # Check if chromium-browser is available
+        chromium = shutil.which('chromium-browser') or shutil.which('chromium')
+
+        if chromium:
+            logger.info(f"Opening HTML page in Chromium: {url}")
+            # Open in kiosk mode, fullscreen
+            self.browser_process = subprocess.Popen([
+                chromium,
+                '--kiosk',
+                '--noerrdialogs',
+                '--disable-infobars',
+                '--no-first-run',
+                url
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        else:
+            logger.warning("Chromium not found, falling back to MPV (may not work properly)")
+            # Fallback: try MPV anyway (will likely fail but at least we try)
+            self.player.play(url)
+
     def _start_video_monitor(self):
         """
         Start a thread to monitor video playback and detect completion.
         """
         def monitor():
             logger.info("Starting video monitor...")
-            self.player.wait_for_completion()
-            logger.info("Video playback completed")
+
+            # Check if we're displaying HTML or playing video
+            if hasattr(self, 'browser_process') and self.browser_process:
+                # Monitor browser process
+                logger.info("Monitoring browser process...")
+                # For HTML pages (like limit reached), auto-close after 5 seconds
+                import time
+                time.sleep(5)
+                self.browser_process.terminate()
+                self.browser_process.wait()
+                self.browser_process = None
+            else:
+                # Monitor MPV video playback
+                self.player.wait_for_completion()
+
+            logger.info("Playback completed")
 
             # Transition back to IDLE
             self._on_video_complete()
