@@ -269,6 +269,7 @@ class ClientApp:
                         logger.warning(f"Error terminating browser: {e}")
                 # Otherwise it's just a flag (webbrowser.open case)
                 # and we can't close it programmatically
+                logger.warning("Browser opened via webbrowser.open(); cannot be closed programmatically. User must close the browser manually.")
 
                 self.browser_process = None
             else:
