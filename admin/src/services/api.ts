@@ -77,6 +77,13 @@ export interface ClearQueueResponse {
   removed: number;
 }
 
+export interface BonusPlaysResponse {
+  client_id: string;
+  bonus_plays_count: number;
+  bonus_plays_date: string;
+  new_effective_limit: number;
+}
+
 export class ApiClient {
   private baseUrl: string;
 
@@ -163,6 +170,16 @@ export class ApiClient {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(data)
+    });
+  }
+
+  async addBonusPlays(clientId: string, count: number): Promise<BonusPlaysResponse> {
+    return this.request<BonusPlaysResponse>(`/api/clients/${clientId}/add-bonus-plays`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ count })
     });
   }
 

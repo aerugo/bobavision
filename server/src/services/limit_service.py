@@ -38,7 +38,7 @@ class LimitService:
         Returns:
             True if limit reached or exceeded, False otherwise
         """
-        daily_limit = self.get_daily_limit(client_id)
+        daily_limit = self.get_effective_daily_limit(client_id, today)
         plays_today = self.count_plays_today(client_id, today)
 
         return plays_today >= daily_limit
@@ -58,6 +58,29 @@ class LimitService:
             return DEFAULT_DAILY_LIMIT
 
         return client.daily_limit
+
+    def get_effective_daily_limit(self, client_id: str, today: date) -> int:
+        """Get effective daily limit including bonus plays for today.
+
+        Args:
+            client_id: Client identifier
+            today: Date to check bonus plays for
+
+        Returns:
+            Effective daily video limit (base limit + bonus plays if applicable)
+        """
+        client = self.client_repo.get_by_id(client_id)
+
+        if client is None:
+            return DEFAULT_DAILY_LIMIT
+
+        base_limit = client.daily_limit
+
+        # Add bonus plays if they were granted for today
+        if client.bonus_plays_date == today:
+            return base_limit + client.bonus_plays_count
+
+        return base_limit
 
     def count_plays_today(self, client_id: str, today: date) -> int:
         """Count non-placeholder plays for client today.

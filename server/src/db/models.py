@@ -2,8 +2,8 @@
 
 GREEN phase: Implement models to pass tests.
 """
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from datetime import datetime, date
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
 
 
@@ -38,6 +38,8 @@ class ClientSettings(Base):
     friendly_name = Column(String, nullable=False)
     daily_limit = Column(Integer, default=3, nullable=False)
     tag_filters = Column(String, nullable=True)  # Comma-separated tags
+    bonus_plays_count = Column(Integer, default=0, nullable=False)  # Extra plays granted for today
+    bonus_plays_date = Column(Date, nullable=True)  # Date when bonus plays were granted
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime,
